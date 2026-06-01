@@ -1,0 +1,114 @@
+# ═══════════════════════════════════════════════════════
+#  VIGIL — Monorepo .gitignore
+# ═══════════════════════════════════════════════════════
+
+# ─── Environment & Secrets ──────────────────────────────
+# NEVER commit private keys, RPC URLs, or API keys
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.staging
+# Keep the example file — it documents required vars
+!.env.example
+
+# ─── Node / npm ─────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+.pnp
+.pnp.*
+package-lock.json.bak
+# This repo uses pnpm workspaces; keep accidental npm lockfiles out of git
+package-lock.json
+
+# ─── TypeScript build output ────────────────────────────
+dist/
+build/
+out/
+*.tsbuildinfo
+*.d.ts.map
+
+# ─── Hardhat / Contracts ────────────────────────────────
+# Auto-generated on every compile — never commit these
+packages/contracts/artifacts/
+packages/contracts/cache/
+packages/contracts/typechain-types/
+# Local deployment receipts (if any)
+packages/contracts/deployments/localhost/
+packages/contracts/deployments/hardhat/
+
+# ─── ZK Circuits ────────────────────────────────────────
+# Proving keys & witness files are large binary blobs
+packages/agent/circuits/*.zkey
+packages/agent/circuits/*.ptau
+packages/agent/circuits/*.r1cs
+packages/agent/circuits/*.sym
+packages/agent/circuits/*.wtns
+packages/agent/circuits/witness
+packages/agent/circuits/build/
+
+# ─── SQLite database ────────────────────────────────────
+# The indexer's local database — regenerated at runtime
+*.db
+*.db-shm
+*.db-wal
+packages/indexer/vigil.db
+
+# ─── Next.js / Frontend ─────────────────────────────────
+packages/frontend/.next/
+packages/frontend/out/
+packages/frontend/coverage/
+packages/frontend/.vercel/
+packages/frontend/.env
+packages/frontend/.env.*
+packages/frontend/next-env.d.ts
+
+# ─── Agent runtime files ────────────────────────────────
+# IPFS upload caches, tmp bundles
+packages/agent/src/tmp/
+packages/agent/*.bundle.json
+
+# ─── OS / Editor junk ───────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ─── IDEs ───────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*.suo
+*.user
+*.workspace
+
+# ─── Logs ───────────────────────────────────────────────
+logs/
+*.log
+*.log.*
+
+# ─── Test / Coverage ────────────────────────────────────
+coverage/
+.nyc_output/
+lcov.info
+
+# ─── Misc ───────────────────────────────────────────────
+*.pem
+*.key
+*.cert
+.temp/
+tmp/

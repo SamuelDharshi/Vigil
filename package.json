@@ -1,0 +1,24 @@
+{
+  "name": "vigil",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VIGIL — Autonomous RWA Portfolio Agent | Mantle Turing Test Hackathon 2026",
+  "workspaces": [
+    "packages/contracts",
+    "packages/agent",
+    "packages/indexer",
+    "packages/frontend"
+  ],
+  "scripts": {
+    "contracts:test": "pnpm --filter contracts test",
+    "contracts:deploy": "pnpm --filter contracts deploy:sepolia",
+    "agent:dev": "pnpm --filter agent dev",
+    "agent:cron": "pnpm --filter agent cron",
+    "indexer:dev": "pnpm --filter indexer dev",
+    "frontend:dev": "pnpm --filter frontend dev",
+    "frontend:build": "pnpm --filter frontend build"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
