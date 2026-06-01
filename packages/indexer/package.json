@@ -1,0 +1,24 @@
+{
+  "name": "indexer",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "migrate": "ts-node src/migrate.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0",
+    "ethers": "^6.11.0",
+    "pg": "^8.11.0",
+    "sqlite3": "^6.0.1",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.11.0",
+    "@types/ws": "^8.5.10",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.4.0"
+  }
+}
