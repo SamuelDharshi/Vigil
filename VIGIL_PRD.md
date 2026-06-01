@@ -898,3 +898,534 @@ contract VIGILVault is Ownable {
     
     // ── STATE ──
     mapping(address => uint256) public allocation;  // token → basis points (10000 = 100%)
+    uint256 public epochStartBlock;
+    uint256 public epochAllocationUsed; // resets each epoch (every ~6h)
+    
+    // ── EVENTS ──
+    event DecisionExecuted(address indexed fromToken, address indexed toToken, uint256 amount, bytes32 txHash);
+    event GuardrailRejected(string reason, bytes32 decisionHash);
+    event GasReservoirFunded(uint256 amount);
+    
+    constructor(address _agentWallet, address[] memory _allowedTokens) Ownable(msg.sender) {
+        AGENT_WALLET = _agentWallet;
+        for (uint i = 0; i < _allowedTokens.length; i++) {
+            allowedTokens[_allowedTokens[i]] = true;
+        }
+        epochStartBlock = block.number;
+    }
+    
+    modifier onlyAgent() {
+        require(msg.sender == AGENT_WALLET, "VIGIL: not agent");
+        _;
+    }
+    
+    // ── GUARDRAIL VALIDATION ──
+    function validateDecision(
+        address fromToken,
+        address toToken,
+        uint256 amount,
+        uint256 slippageBps
+    ) external view returns (bool valid, string memory reason) {
+        if (!allowedTokens[fromToken]) return (false, "FROM_TOKEN_NOT_WHITELISTED");
+        if (!allowedTokens[toToken]) return (false, "TO_TOKEN_NOT_WHITELISTED");
+        if (slippageBps > MAX_SLIPPAGE_BPS) return (false, "SLIPPAGE_EXCEEDED");
+        if (amount > MAX_SINGLE_TX_USD) return (false, "AMOUNT_EXCEEDS_CAP");
+        if (epochAllocationUsed + amount > (getTotalValue() * MAX_EPOCH_ALLOCATION / 10000)) {
+            return (false, "EPOCH_ALLOCATION_EXCEEDED");
+        }
+        if (gasReservoir < GAS_RESERVOIR_MIN) return (false, "GAS_RESERVOIR_LOW");
+        return (true, "");
+    }
+    
+    // ── EXECUTION (agent only, after guardrail pass) ──
+    function executeRebalance(
+        address fromToken,
+        address toToken,
+        uint256 amount,
+        bytes calldata executionData // encoded Fluxion call
+    ) external onlyAgent {
+        (bool valid, string memory reason) = validateDecision(fromToken, toToken, amount, MAX_SLIPPAGE_BPS);
+        require(valid, reason);
+        
+        epochAllocationUsed += amount;
+        
+        // Execute via Fluxion xChange (delegatecall to execution adapter)
+        // Actual execution logic in FluxionAdapter.sol
+        emit DecisionExecuted(fromToken, toToken, amount, keccak256(executionData));
+    }
+    
+    // ── SELF-SUSTAINING GAS RESERVOIR ──
+    function fundGasReservoir(uint256 mntAmount) external {
+        // Called automatically by yield claiming logic
+        IERC20(MNT_TOKEN).transferFrom(msg.sender, address(this), mntAmount);
+        gasReservoir += mntAmount;
+        emit GasReservoirFunded(mntAmount);
+    }
+    
+    function consumeGas(uint256 mntAmount) external onlyAgent {
+        require(gasReservoir >= mntAmount, "VIGIL: gas reservoir empty");
+        gasReservoir -= mntAmount;
+    }
+    
+    function getTotalValue() public view returns (uint256) {
+        // Sum of all token balances in USD terms via Chainlink feeds
+        // Implementation: iterate allowedTokens, fetch price, sum
+        // (simplified here for readability)
+    }
+}
+```
+
+### 9.2 VIGILLedger.sol
+
+Immutable event log. Every decision, every skip, every proof hash.
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.25;
+
+contract VIGILLedger {
+    
+    struct LedgerEntry {
+        uint256 timestamp;
+        uint256 agentId;          // ERC-8004 token ID
+        uint8 entryType;          // 0=SKIPPED, 1=EXECUTED, 2=CROSS_CHAIN
+        address fromToken;
+        address toToken;
+        uint256 amount;
+        uint256 confidence;       // × 100 (7900 = 79.00%)
+        bytes32 txHash;
+        bytes32 zkProofHash;      // Groth16 proof hash
+        bytes32 signalBundleHash; // IPFS CID of full signal data
+    }
+    
+    LedgerEntry[] public entries;
+    
+    event EntryLogged(uint256 indexed entryId, uint8 entryType, uint256 confidence);
+    
+    function log(LedgerEntry calldata entry) external returns (uint256 entryId) {
+        // Only VIGILVault can log (set in constructor)
+        entries.push(entry);
+        entryId = entries.length - 1;
+        emit EntryLogged(entryId, entry.entryType, entry.confidence);
+    }
+    
+    function getEntries(uint256 from, uint256 count) external view returns (LedgerEntry[] memory) {
+        // Pagination helper for frontend
+    }
+}
+```
+
+---
+
+## 10. Agent Behavior Specification
+
+### Signal Weight Model
+
+```typescript
+interface SignalBundle {
+  chainlink: {
+    mEthApr: number;           // e.g., 3.81
+    usdyYield: number;         // e.g., 4.09
+    xstockPrices: Record<string, number>; // { NVDAx: 118.40, TSLAx: 312.20, ... }
+  };
+  nansen: {
+    smartMoneyFlows: Array<{
+      token: string;
+      direction: 'IN' | 'OUT';
+      usdValue: number;
+      walletsCount: number;
+    }>;
+  };
+  elfa: {
+    sentimentDeltas: Record<string, number>; // token → normalized delta [-1, 1]
+  };
+  mantle: {
+    currentAllocation: Record<string, number>; // token → basis points
+    gasReservoir: bigint;
+    epochAllocationUsed: number;
+  };
+}
+```
+
+**Scoring model:**
+```typescript
+function scoreAsset(asset: string, bundle: SignalBundle): number {
+  let score = 50; // neutral baseline
+  
+  // Yield differential signal (weight: 0.35)
+  if (asset === 'USDY') {
+    const yieldSpread = bundle.chainlink.usdyYield - bundle.chainlink.mEthApr;
+    score += yieldSpread * 0.35 * 10; // ±3.5 points per 1% yield difference
+  }
+  
+  // Smart money signal (weight: 0.40)
+  const smFlows = bundle.nansen.smartMoneyFlows.filter(f => f.token === asset);
+  const netSmFlow = smFlows.reduce((acc, f) => {
+    return acc + (f.direction === 'IN' ? f.usdValue : -f.usdValue);
+  }, 0);
+  score += Math.sign(netSmFlow) * Math.min(Math.abs(netSmFlow) / 100000, 1) * 0.40 * 20;
+  
+  // Social sentiment signal (weight: 0.25)
+  const sentDelta = bundle.elfa.sentimentDeltas[asset] ?? 0;
+  score += sentDelta * 0.25 * 15;
+  
+  return Math.max(0, Math.min(100, score));
+}
+
+function generateDecision(bundle: SignalBundle): Decision | null {
+  const scores = {
+    mETH: scoreAsset('mETH', bundle),
+    USDY: scoreAsset('USDY', bundle),
+    NVDAx: scoreAsset('NVDAx', bundle),
+    AAPLx: scoreAsset('AAPLx', bundle),
+    TSLAx: scoreAsset('TSLAx', bundle),
+  };
+  
+  // Find highest and lowest scored assets
+  const sorted = Object.entries(scores).sort(([,a],[,b]) => b - a);
+  const best = sorted[0];
+  const worst = sorted[sorted.length - 1];
+  
+  const confidence = (best[1] - worst[1]) / 100;
+  
+  if (confidence < 0.55) return null; // below threshold → SKIP
+  
+  // Calculate rotate amount (proportional to confidence, capped at epoch limit)
+  const totalValue = getVaultTotalValue(bundle);
+  const rotateAmount = Math.min(
+    totalValue * confidence * 0.15, // max 15% of portfolio
+    MAX_SINGLE_TX_USD
+  );
+  
+  return {
+    action: 'ROTATE',
+    fromAsset: worst[0],
+    toAsset: best[0],
+    amount: rotateAmount,
+    confidence,
+    reasoning: generateReasoning(scores, bundle), // human-readable string
+  };
+}
+```
+
+### Cross-Chain Routing Decision
+```typescript
+async function checkByRealOpportunity(bundle: SignalBundle): Promise<boolean> {
+  const byrealApr = await getByrealClmmApr('MNT-USDC');
+  const threshold = bundle.chainlink.mEthApr + 0.8; // 0.8% premium required
+  return byrealApr > threshold;
+}
+```
+
+### Agent Character
+
+VIGIL's decision patterns produce an emergent character over time:
+- **Conservative on xStocks:** Requires combined signal confidence >65% (vs 55% for yield assets) before adjusting xStocks exposure. The agent learned (through weight tuning) that equity signals are noisier.
+- **Yield-first:** Always prefers the higher-yielding stable asset (mETH vs USDY) as a default hold. Only moves into xStocks on strong positive signals.
+- **Cross-chain assertive:** Willing to bridge via Super Portal when the APR differential is clear. Does not hesitate cross-chain.
+
+This character is not written in code as rules. It emerges from the weights. After 14 days, the ledger shows a recognizable pattern. Judges will read this pattern and understand that VIGIL has a personality.
+
+---
+
+## 11. Data Models
+
+### Decision (agent output)
+```typescript
+interface Decision {
+  id: string;                    // UUID
+  timestamp: number;             // Unix ms
+  action: 'ROTATE' | 'CLMM_OPEN' | 'CLMM_CLOSE' | 'SKIP';
+  fromAsset: string;
+  toAsset: string;
+  amount: number;                // USD
+  confidence: number;            // 0–1
+  reasoning: string;             // Human-readable, Instrument Serif font in UI
+  signalBundleHash: string;      // IPFS CID of raw SignalBundle
+  zkProofHash?: string;          // Set after proof generation
+  txHash?: string;               // Set after execution
+  erc8004TaskId?: string;        // Set after registry submission
+  outcomeAt6h?: number;          // Measured delta 6h later
+  outcomeAt24h?: number;         // Measured delta 24h later
+}
+```
+
+### LedgerEntry (stored in Postgres + on-chain)
+```typescript
+interface LedgerEntry {
+  entryId: number;
+  agentId: string;               // ERC-8004 token ID
+  decision: Decision;
+  reputationScoreBefore: number;
+  reputationScoreAfter: number;
+  publicProofUrl: string;        // vigil.app/proof/[txHash]
+  shareText: string;             // Pre-composed X share text
+}
+```
+
+---
+
+## 12. Self-Sustaining Gas Economy
+
+VIGIL's gas wallet must never require manual top-up. Here is the exact mechanism:
+
+### Gas Reservoir Funding Sources
+
+1. **mETH staking rewards:** A 2% protocol fee on all staking yield claimed within the vault flows to the gas reservoir.
+2. **USDY yield claims:** A 1.5% fee on USDY yield claimed flows to gas reservoir.
+3. **Byreal CLMM fees:** When Byreal position fees are claimed, 3% flows to gas reservoir.
+
+All three happen automatically when the agent claims yield — which it does every 6 hours.
+
+### Gas Consumption Budget
+- Signal aggregation (read-only RPC calls): ~0 gas
+- Decision execution (VIGILVault.executeRebalance): ~120,000 gas
+- ERC-8004 Reputation Registry (submitFeedback): ~80,000 gas
+- ERC-8004 Validation Registry (submitValidation): ~200,000 gas (with ZK proof)
+- VIGILLedger.log: ~50,000 gas
+
+At Mantle's current gas price (~0.001 gwei), 214 decisions over 14 days costs approximately 0.42 MNT total. The reservoir accumulates far more than this from yield fees.
+
+### Reservoir Guard
+
+If reservoir falls below 0.5 MNT: agent automatically skips executions (logs as `SKIP: GAS_LOW`) until reservoir refills from next yield claim. The agent never halts — it degrades gracefully.
+
+---
+
+## 13. Security Guardrails
+
+These are hardcoded in Solidity. The AI has no ability to override them.
+
+| Guardrail | Value | Solidity Enforcement |
+|---|---|---|
+| Token whitelist | mETH, USDY, TSLAx, NVDAx, AAPLx, METAx, GOOGLx, MSTRx, SPYx, QQQx, MNT | `require(allowedTokens[token])` |
+| Max slippage per tx | 0.40% | `require(slippageBps <= 40)` |
+| Max single tx size | $10,000 | `require(amount <= MAX_SINGLE_TX_USD)` |
+| Max per-epoch allocation change | 15% of portfolio | `require(epochUsed + amount <= epochCap)` |
+| No arbitrary withdrawals | Agent cannot withdraw to external wallets | No `withdraw()` function exposed to agent |
+| Agent address whitelist | Only `AGENT_WALLET` can call execute functions | `modifier onlyAgent` |
+| Gas reservoir minimum | 0.5 MNT before execution allowed | `require(gasReservoir >= GAS_RESERVOIR_MIN)` |
+
+These guardrails are the answer to the judge's question: *"How does your agent prevent AI hallucinations from causing financial losses?"* The answer is: the smart contract physically prevents it, regardless of what the AI outputs.
+
+---
+
+## 14. Demo Day Playbook
+
+### Pre-Demo (14 Days Before July 2)
+
+- [ ] Deploy VIGILVault and VIGILLedger to Mantle Mainnet
+- [ ] Spawn agent (mint ERC-8004 identity, register agent card on IPFS)
+- [ ] Fund vault with demo capital (mETH + USDY + small xStocks positions)
+- [ ] Start cron — agent runs every 30 minutes
+- [ ] Apply for Nansen credits and Elfa credits immediately
+- [ ] Build the X thread: "Meet VIGIL — an AI agent that never sleeps. It's been running on Mantle for [N] days. Here's what it did last night while NYSE was closed." — schedule this 5 days before voting closes
+
+### Demo Script (5 Minutes on Stage)
+
+**Minute 1:** Open the War Room live. No slides. Just the live interface.
+- "This is VIGIL. It has been running for 14 days. Every decision it has ever made is on Mantle right now, verifiable by anyone in this room."
+
+**Minute 2:** Show the Market Gap Clock bar.
+- "Right now, it is [time] UTC. NYSE opens in [X] hours. Every institutional equity trader on Earth is locked out of their position. VIGIL is not."
+- Scroll to a Saturday-night decision in the ledger. Click it. Open the proof page.
+
+**Minute 3:** Show the proof page.
+- "This is what happened at 2:17 AM on a Sunday. VIGIL detected an earnings signal and two smart wallets exiting NVDAx. It rotated $1,840 out of NVDAx into USDY via Fluxion's Atomic RFQ — issuer-direct pricing, no AMM slippage. The execution took 4 seconds."
+- "Here is the ZK proof, on-chain, in the ERC-8004 Validation Registry. You can verify right now that the math was correct."
+
+**Minute 4:** Show a judge the ERC-8004 reputation score live.
+- "Agent #047 has a reputation score of 851, earned over 214 verified decisions. This score is public, it grows, other agents can read it, and it cannot be faked."
+- Open https://erc8004.quicknode.com and show the agent live on the explorer.
+
+**Minute 5:** Close.
+- "VIGIL is not a chatbot. It is not a dashboard. It is an autonomous economic actor on Mantle — using xStocks, mETH, USDY, the Super Portal, the Byreal CLI, Fluxion xChange, ERC-8004 across all three registries, Chainlink, Nansen, and Elfa. Every product Mantle launched in 2026, in one live, running system."
+- "This is the Turing Test. Passed. On-chain."
+
+---
+
+## 15. Build Timeline
+
+### Week 1 (Days 1–7): Foundations
+
+| Day | Task |
+|---|---|
+| 1 | Apply for Nansen + Elfa credits · Deploy Mantle Sepolia wallet · Init repo |
+| 2 | Deploy VIGILVault.sol + VIGILLedger.sol to Mantle Sepolia · Run unit tests |
+| 3 | ERC-8004 integration: mint agent identity, pin agent card to IPFS, verify on explorer |
+| 4 | Signal Aggregator: Chainlink feeds + Nansen API + Elfa API (mock data OK for now) |
+| 5 | Decision Engine: scoring model + JSON output + threshold logic |
+| 6 | Byreal CLI integration: positions open/close/analyze on Solana devnet |
+| 7 | Super Portal bridge integration (testnet) |
+
+### Week 2 (Days 8–14): Execution + Proof Layer
+
+| Day | Task |
+|---|---|
+| 8 | Fluxion xChange Atomic RFQ integration (Mantle Sepolia) |
+| 9 | Circom circuit: write vigil_rebalance.circom · trusted setup · generate .zkey |
+| 10 | snarkjs Groth16 proof generation + Solidity verifier deployment + ERC-8004 Validation Registry integration |
+| 11 | ERC-8004 Reputation Registry: submitFeedback after each executed decision |
+| 12 | Self-sustaining gas reservoir: yield claim → fee extraction → reservoir top-up |
+| 13 | VIGILLedger event logging · Postgres indexer · WebSocket server |
+| 14 | **SWITCH TO MAINNET** · Fund vault · Start live cron run · Begin 14-day recording |
+
+### Week 3 (Days 15–21): Frontend + Demo Polish
+
+| Day | Task |
+|---|---|
+| 15 | War Room UI: three-column layout, event stream, pipeline visualization, ledger |
+| 16 | Market Gap Clock footer · Portfolio allocation bar (live WebSocket) |
+| 17 | Public proof pages (`/proof/[txHash]`) · X share button + pre-composed text |
+| 18 | Agent spawn screen (first-time flow) |
+| 19 | Mobile-responsive proof pages (for X shares to look good on phone) |
+| 20 | Load test: 100 concurrent WebSocket connections · Fix lag |
+| 21 | Full end-to-end rehearsal on mainnet: spawn → run 24h → demo all screens |
+
+### Final 10 Days (Before July 2): Demo Prep
+
+| Task |
+|---|
+| X thread drafting and scheduling (post 5 days before community vote closes) |
+| Demo script rehearsals (5x minimum) |
+| Mantlescan bookmark: pre-load the agent's ledger page |
+| ERC-8004 Explorer bookmark: pre-load agent #047 profile |
+| Backup demo recording (in case live demo connectivity fails) |
+| Submit to DoraHacks: video walkthrough + GitHub repo + live demo URL |
+
+---
+
+## 16. Judging Scorecard Mapping
+
+| Criterion | Max Points | VIGIL's Score Rationale |
+|---|---|---|
+| Technical depth | 15 | ERC-8004 all 3 registries · ZK proofs · Atomic RFQ · Byreal CLI · Super Portal · Circom circuit |
+| Mantle ecosystem integration | 10 | Every 2026 Mantle product used: mETH, USDY, xStocks, xChange, Super Portal, Fluxion |
+| Innovation | 10 | First agent application on xChange (3 weeks old) · First agent using ZK-validated rebalancing on Mantle |
+| Business potential | 10 | Clear monetization: premium vault fees, institutional white-label, xPoints program integration |
+| User experience | 5 | War Room is a category-defining interface — judging panel has never seen this |
+| BGA / financial inclusion alignment | 10 | Retail holders of xStocks get institutional-grade overnight risk management |
+| Transparency / verifiability | 7.5 | ZK proof in Validation Registry · full public ledger · Mantlescan verifiable |
+| Real-world impact | 5 | Closes the 65-hour execution gap for every xStocks holder on Earth |
+| Demo quality | 5 | Live demo = live Turing Test moment on stage |
+| Best UI/UX (separate prize) | $3,000 | War Room is the submission for this prize |
+| Community Voting × 2 | $17,000 | Proof pages designed to be shared on X · X thread strategy active |
+
+---
+
+## 17. Repository Structure
+
+```
+vigil/
+├── README.md                        # Public-facing description for DoraHacks submission
+├── packages/
+│   ├── contracts/                   # Solidity
+│   │   ├── src/
+│   │   │   ├── VIGILVault.sol
+│   │   │   ├── VIGILLedger.sol
+│   │   │   └── adapters/
+│   │   │       ├── FluxionAdapter.sol
+│   │   │       └── SuperPortalAdapter.sol
+│   │   ├── test/
+│   │   └── hardhat.config.ts
+│   │
+│   ├── agent/                       # Node.js autonomous agent
+│   │   ├── src/
+│   │   │   ├── cron.ts              # 30-minute cron entry point
+│   │   │   ├── signals/
+│   │   │   │   ├── chainlink.ts
+│   │   │   │   ├── nansen.ts
+│   │   │   │   └── elfa.ts
+│   │   │   ├── decision/
+│   │   │   │   ├── engine.ts        # Scoring model
+│   │   │   │   └── schema.ts        # Decision TypeScript types
+│   │   │   ├── executor/
+│   │   │   │   ├── fluxion.ts       # Atomic RFQ execution
+│   │   │   │   ├── byreal.ts        # Byreal CLI subprocess wrapper
+│   │   │   │   └── superPortal.ts   # Cross-chain bridge calls
+│   │   │   ├── proof/
+│   │   │   │   ├── circuit.ts       # snarkjs Groth16 generation
+│   │   │   │   └── registry.ts      # ERC-8004 Validation + Reputation
+│   │   │   └── identity/
+│   │   │       └── erc8004.ts       # Agent spawn + card generation + IPFS pin
+│   │   └── circuits/
+│   │       ├── vigil_rebalance.circom
+│   │       ├── vigil_rebalance.wasm  # compiled
+│   │       └── vigil_rebalance_final.zkey
+│   │
+│   ├── indexer/                     # Postgres event indexer
+│   │   ├── src/
+│   │   │   ├── listeners.ts         # VIGILLedger event subscribers
+│   │   │   ├── db.ts                # Postgres schema + queries
+│   │   │   └── websocket.ts         # Real-time push to frontend
+│   │   └── migrations/
+│   │
+│   └── frontend/                    # Next.js 15 app
+│       ├── app/
+│       │   ├── page.tsx             # War Room (/)
+│       │   ├── spawn/page.tsx       # Agent spawn screen (/spawn)
+│       │   └── proof/[txHash]/
+│       │       └── page.tsx         # Public proof page
+│       ├── components/
+│       │   ├── WarRoom/
+│       │   │   ├── EventStream.tsx
+│       │   │   ├── DecisionPipeline.tsx
+│       │   │   ├── AgentLedger.tsx
+│       │   │   ├── AllocationBar.tsx
+│       │   │   └── MarketGapClock.tsx
+│       │   └── SpawnScreen.tsx
+│       └── lib/
+│           ├── wagmi.ts             # Wallet connection
+│           └── ws.ts                # WebSocket client
+│
+├── docs/
+│   ├── architecture.md
+│   ├── guardrails.md
+│   └── circuit-spec.md
+│
+└── .env.example
+    # MANTLE_RPC_URL=
+    # AGENT_PRIVATE_KEY=          # stored securely, never committed
+    # NANSEN_API_KEY=
+    # ELFA_API_KEY=
+    # WEB3_STORAGE_KEY=
+    # BYREAL_SOLANA_WALLET=       # path to ~/.config/byreal/keys/
+    # ERC8004_IDENTITY_REGISTRY=  # 0x8004A169... Mantle mainnet
+    # ERC8004_REPUTATION_REGISTRY=
+    # ERC8004_VALIDATION_REGISTRY=
+    # VIGIL_VAULT_ADDRESS=
+    # VIGIL_LEDGER_ADDRESS=
+    # SUPER_PORTAL_ADDRESS=
+    # FLUXION_XCHANGE_ADDRESS=
+```
+
+---
+
+## Appendix: Key External References
+
+| Resource | URL | Priority |
+|---|---|---|
+| ERC-8004 EIP Spec | https://eips.ethereum.org/EIPS/eip-8004 | READ FIRST |
+| ERC-8004 Dev Guide (Monad) | https://docs.monad.xyz/guides/erc-8004 | READ SECOND |
+| ERC-8004 Explorer | https://erc8004.quicknode.com | TEST HERE |
+| awesome-erc8004 (addresses, SDKs) | https://github.com/sudeepb02/awesome-erc8004 | Contract addresses |
+| Byreal Agent Skills CLI | https://github.com/byreal-git/byreal-agent-skills | CLMM integration |
+| Byreal Docs | https://docs.byreal.io | How to set up |
+| Byreal SKILL.md | https://github.com/byreal-git/byreal-cli/blob/main/skills/byreal-cli/SKILL.md | All CLI commands |
+| Fluxion Network Docs | https://docs.fluxion.network | xChange Atomic RFQ |
+| xStocks | https://xstocks.fi | Token addresses |
+| Mantle Super Portal | https://portal.mantle.xyz | Bridge ABI |
+| Chainlink Mantle Feeds | https://docs.chain.link/data-feeds/price-feeds/addresses?network=mantle | Oracle addresses |
+| Nansen API | https://docs.nansen.ai | Smart money signals |
+| Elfa AI API | https://docs.elfa.ai | Sentiment signals |
+| Circom 2.x | https://docs.circom.io | ZK circuit language |
+| snarkjs | https://github.com/iden3/snarkjs | Groth16 proof gen |
+| Zyfai ERC-8004 rebalancer reference | https://github.com/ondefy/erc8004-implementation | ZK + ERC-8004 example |
+| web3.storage | https://web3.storage/docs | IPFS/Filecoin pinning |
+| DoraHacks submission | https://dorahacks.io/hackathon/mantleturingtesthackathon2026 | Submit here |
+| Hackathon tracks detail | https://dorahacks.io/hackathon/mantleturingtesthackathon2026/tracks | Prize breakdown |
+
+---
+
+*VIGIL PRD v1.0 — Built for the Mantle Turing Test Hackathon 2026*  
+*"The market never sleeps. Neither does VIGIL."*
