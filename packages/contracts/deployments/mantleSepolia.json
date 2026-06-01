@@ -1,0 +1,16 @@
+{
+  "network": "mantleSepolia",
+  "chainId": "5003",
+  "deployedAt": "2026-06-01T15:06:28.600Z",
+  "deployer": "0x3Ba85544C7a5C386AE7Cf753e887FB05Ac946074",
+  "contracts": {
+    "VIGILVault": "0x507610ca7d6FBFF8a8502D2D3bdd5Af8C02d220D",
+    "VIGILLedger": "0x22cE36a8Cc9E94eBA75F7Be96007e6fF3856727e"
+  },
+  "guardian": {
+    "MAX_SLIPPAGE_BPS": "40",
+    "MAX_EPOCH_ALLOCATION": "1500",
+    "MAX_SINGLE_TX_USD": "10000000000",
+    "GAS_RESERVOIR_MIN": "500000000000000000"
+  }
+}
