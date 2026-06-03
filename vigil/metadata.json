@@ -1,0 +1,6 @@
+{
+  "name": "VIGIL",
+  "description": "Autonomous cross-asset portfolio management agent on Mantle managing mETH, USDY, and xStocks with a 3D WebGL real-time visualization War Room.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
