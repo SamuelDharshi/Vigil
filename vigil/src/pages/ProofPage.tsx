@@ -59,18 +59,18 @@ function ProofRow({ dec }: { dec: typeof ALL_PROOFS[0] }) {
     <div className="border border-white/5 rounded-lg overflow-hidden hover:border-white/10 transition-colors">
       <div
         onClick={() => setExpanded(e => !e)}
-        className="flex items-center gap-4 px-4 py-3 cursor-pointer hover:bg-white/[0.02] transition-colors"
+        className="flex items-center gap-4 px-4 py-3 cursor-pointer hover:bg-white/2 transition-colors"
       >
         {/* Action badge */}
-        <span className={`text-[9px] font-mono font-black px-2 py-0.5 rounded-sm border uppercase flex-shrink-0 ${actionColor}`}>
+        <span className={`text-[9px] font-mono font-black px-2 py-0.5 rounded-sm border uppercase shrink-0 ${actionColor}`}>
           {dec.action}
         </span>
         {/* Assets */}
-        <span className="text-xs font-mono text-gray-200 font-bold flex-shrink-0 w-28">
+        <span className="text-xs font-mono text-gray-200 font-bold shrink-0 w-28">
           {dec.fromAsset} {dec.action !== 'SKIP' && `→ ${dec.toAsset}`}
         </span>
         {/* Confidence bar */}
-        <div className="hidden sm:flex items-center gap-2 flex-shrink-0 w-28">
+        <div className="hidden sm:flex items-center gap-2 shrink-0 w-28">
           <div className="flex-1 bg-white/5 h-1 rounded-full overflow-hidden">
             <div className="h-full bg-[#00FF7F]" style={{ width: `${dec.confidence * 100}%` }} />
           </div>
@@ -87,7 +87,7 @@ function ProofRow({ dec }: { dec: typeof ALL_PROOFS[0] }) {
           {dec.outcomeDelta?.split(' ')[0]}
         </span>
         {/* Expand */}
-        <div className="flex-shrink-0 text-gray-600">
+        <div className="shrink-0 text-gray-600">
           {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </div>
       </div>
@@ -116,7 +116,7 @@ function ProofRow({ dec }: { dec: typeof ALL_PROOFS[0] }) {
                     <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider block">{label}</span>
                     <div className="flex items-center gap-1.5">
                       <code className="text-[10px] text-gray-300 font-mono truncate flex-1">{value}</code>
-                      <button onClick={e => handleCopy(value, e)} className="text-gray-600 hover:text-white transition-colors cursor-pointer flex-shrink-0">
+                      <button onClick={e => handleCopy(value, e)} className="text-gray-600 hover:text-white transition-colors cursor-pointer shrink-0">
                         {copied ? <CheckCircle2 className="w-3 h-3 text-[#00FF7F]" /> : <Copy className="w-3 h-3" />}
                       </button>
                       {link && (
@@ -196,7 +196,7 @@ export default function ProofPage() {
             { label: 'Skipped', value: stats.skipped, color: 'text-gray-400' },
             { label: 'Total Volume', value: `$${stats.totalVolume.toLocaleString()}`, color: 'text-cyan-400' },
           ].map(({ label, value, color }) => (
-            <div key={label} className="bg-white/[0.03] border border-white/10 rounded-xl p-4 text-center">
+            <div key={label} className="bg-white/3 border border-white/10 rounded-xl p-4 text-center">
               <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider block mb-1">{label}</span>
               <span className={`text-xl font-black font-mono ${color}`}>{value}</span>
             </div>
