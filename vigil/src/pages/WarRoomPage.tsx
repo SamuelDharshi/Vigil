@@ -189,7 +189,7 @@ export default function WarRoomPage() {
 
             {/* Live log + manual trigger */}
             <div className="flex items-center gap-3 px-3 py-2 bg-black/40 border border-white/5 rounded-sm">
-              <Activity className={`w-3.5 h-3.5 flex-shrink-0 ${stage !== 'idle' ? 'text-[#00FF7F]' : 'text-gray-600'}`} />
+              <Activity className={`w-3.5 h-3.5 shrink-0 ${stage !== 'idle' ? 'text-[#00FF7F]' : 'text-gray-600'}`} />
               <span className="text-[10px] font-mono text-gray-400 flex-1">{log}</span>
               <button
                 onClick={runCycle}
