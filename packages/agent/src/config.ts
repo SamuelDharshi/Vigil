@@ -137,7 +137,7 @@ export const GUARDRAILS = {
 export const CRON_SCHEDULE = "*/30 * * * *"; // Every 30 minutes
 
 // ─── Circuit Paths ────────────────────────────────────────────────────────────
-export const CIRCUIT_WASM_PATH = path.join(__dirname, "../circuits/vigil_rebalance.wasm");
+export const CIRCUIT_WASM_PATH = path.join(__dirname, "../circuits/vigil_rebalance_js/vigil_rebalance.wasm");
 export const CIRCUIT_ZKEY_PATH = path.join(__dirname, "../circuits/vigil_rebalance_final.zkey");
 
 // ─── Database ────────────────────────────────────────────────────────────────
