@@ -76,7 +76,7 @@ export default function ChartsPage() {
     >
       {/* Slim header */}
       <header
-        className="flex-shrink-0 flex items-center justify-between px-4 border-b border-white/5 bg-[#0a0a0a]"
+        className="shrink-0 flex items-center justify-between px-4 border-b border-white/5 bg-[#0a0a0a]"
         style={{ height: HEADER_H }}
       >
         <div className="flex items-center gap-3">
