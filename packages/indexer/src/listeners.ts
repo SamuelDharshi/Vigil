@@ -204,12 +204,17 @@ async function startPollingListener(provider: ethers.JsonRpcProvider): Promise<v
 
   console.log(`[Indexer] Polling from block ${lastProcessedBlock}`);
 
+  const MAX_BLOCK_RANGE = 9_900; // Mantle Sepolia getLogs cap is 10,000
+
   setInterval(async () => {
     try {
       const currentBlock = await provider.getBlockNumber();
       if (currentBlock <= lastProcessedBlock) return;
 
-      const events = await ledger.queryFilter("EntryLogged", lastProcessedBlock + 1, currentBlock);
+      // Cap block range to avoid RPC limit — process in chunks if needed
+      const toBlock = Math.min(currentBlock, lastProcessedBlock + MAX_BLOCK_RANGE);
+
+      const events = await ledger.queryFilter("EntryLogged", lastProcessedBlock + 1, toBlock);
 
       for (const event of events) {
         if (!("args" in event)) continue;
@@ -248,7 +253,7 @@ async function startPollingListener(provider: ethers.JsonRpcProvider): Promise<v
         }
       }
 
-      lastProcessedBlock = currentBlock;
+      lastProcessedBlock = toBlock;
     } catch (err) {
       console.error("[Indexer] Polling error:", err);
     }
