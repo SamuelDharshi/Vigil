@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import { ethers } from "ethers";
+import * as http from "http";
 import { aggregateSignals } from "./signals/aggregator";
 import { generateDecision, checkByRealOpportunity } from "./decision/engine";
 import { executeXStockTrade } from "./executor/fluxion";
@@ -44,6 +45,63 @@ import { Decision, SkipReason } from "./types";
 
 let activeClmmPositionId: string | null = null;
 let cronTask: cron.ScheduledTask | null = null;
+let lastCycleTs = 0;
+let cycleCount   = 0;
+let lastStatus   = "starting";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HEALTH SERVER — keeps Render free tier alive + exposes /health /status
+// ─────────────────────────────────────────────────────────────────────────────
+
+function startHealthServer() {
+  const PORT = parseInt(process.env.PORT || "10000", 10);
+
+  const server = http.createServer((req, res) => {
+    const url = req.url || "/";
+
+    // Liveness / readiness check
+    if (url === "/health" || url === "/") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        status: "ok",
+        agent: "VIGIL",
+        network: "mantle-sepolia",
+        wallet: agentWallet.address,
+        vault: VIGIL_VAULT_ADDRESS,
+        cycles: cycleCount,
+        lastCycle: lastCycleTs ? new Date(lastCycleTs).toISOString() : null,
+        lastStatus,
+        uptime: Math.floor(process.uptime()) + "s",
+      }));
+      return;
+    }
+
+    // Detailed status
+    if (url === "/status") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: lastStatus, cycles: cycleCount, cronSchedule: CRON_SCHEDULE, lastCycle: lastCycleTs ? new Date(lastCycleTs).toISOString() : null }));
+      return;
+    }
+
+    // Manual trigger (POST /trigger)
+    if (url === "/trigger" && req.method === "POST") {
+      runDecisionCycle().catch(console.error);
+      res.writeHead(202, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "Decision cycle triggered" }));
+      return;
+    }
+
+    res.writeHead(404);
+    res.end("Not found");
+  });
+
+  server.listen(PORT, () => {
+    console.log(`[Health] ✅ VIGIL health server on port ${PORT}`);
+    console.log(`[Health]    GET  /health  — liveness check`);
+    console.log(`[Health]    GET  /status  — agent status`);
+    console.log(`[Health]    POST /trigger — manual cycle`);
+  });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT SPAWN
@@ -54,39 +112,29 @@ export async function spawnAgent(): Promise<string | null> {
   console.log("║   VIGIL AGENT — SPAWNING              ║");
   console.log("╚═══════════════════════════════════════╝\n");
 
-  // First: check if agent is already registered in VIGILVault (fastest)
   let agentId = await getAgentId();
   if (agentId) {
-    console.log(`[Spawn] ✅ Agent already active. ID: ${agentId} (from VIGILVault)`);
+    console.log(`[Spawn] ✅ Agent already active. ID: ${agentId}`);
     return agentId;
   }
 
-  // Pin Agent Card to IPFS regardless of registry status
   const agentCard = buildAgentCard(agentWallet.address);
   console.log("[Spawn] Pinning Agent Card to IPFS...");
   const cid = await pinAgentCard(agentCard);
   console.log(`[Spawn] ✅ Agent Card pinned: ${cid}`);
 
-  // Try to mint ERC-8004 identity — handle testnet registry not deployed
   try {
     console.log("[Spawn] Minting ERC-8004 identity...");
     agentId = await mintAgentIdentity(cid);
-    console.log(`\n[Spawn] ✅ VIGIL Agent spawned!`);
-    console.log(`[Spawn]   Agent ID:  ${agentId}`);
-    console.log(`[Spawn]   Agent CID: ${cid}`);
-    console.log(`[Spawn]   Wallet:    ${agentWallet.address}`);
+    console.log(`\n[Spawn] ✅ VIGIL Agent spawned! ID: ${agentId}`);
     return agentId;
   } catch (err: any) {
     if (err.code === "INSUFFICIENT_FUNDS" || err.message?.includes("insufficient funds")) {
       console.warn("[Spawn] ⚠ Insufficient MNT — get from https://faucet.sepolia.mantle.xyz");
     } else if (err.code === "CALL_EXCEPTION" || err.message?.includes("reverted")) {
-      // ERC-8004 registry not deployed on this testnet — use wallet-derived synthetic ID
-      // Derive from wallet address: deterministic, unique, human-readable
       const syntheticId = BigInt(agentWallet.address).toString().slice(0, 8);
       console.warn(`[Spawn] ⚠ ERC-8004 registry not on Mantle Sepolia — synthetic ID: ${syntheticId}`);
-      console.warn(`[Spawn]   Agent Card pinned: ${cid}`);
-      console.warn(`[Spawn]   View: https://gateway.pinata.cloud/ipfs/${cid}`);
-      saveAgentId(syntheticId, cid);  // ← persists to .agent-state.json
+      saveAgentId(syntheticId, cid);
       agentId = syntheticId;
       return agentId;
     } else {
@@ -103,22 +151,27 @@ export async function spawnAgent(): Promise<string | null> {
 
 export async function runDecisionCycle(): Promise<void> {
   const cycleStart = Date.now();
+  lastCycleTs = cycleStart;
+  cycleCount++;
+  lastStatus = "running";
+
   console.log(`\n${"─".repeat(52)}`);
   console.log(`  VIGIL Decision Cycle — ${new Date().toISOString()}`);
   console.log(`${"─".repeat(52)}`);
 
   const agentId = await getAgentId();
 
-  // ─── STEP 1: INGEST ───────────────────────────────────────────────────────
+  // STEP 1: INGEST
   let bundle;
   try {
     bundle = await aggregateSignals();
   } catch (err: any) {
     console.error(`[Cron] Signal aggregation crashed: ${err.message}`);
+    lastStatus = "error";
     return;
   }
 
-  // ─── STEP 2: IPFS — Pin signal bundle (always, before decision) ──────────
+  // STEP 2: IPFS — pin signal bundle
   let bundleCid = "ipfs-unavailable";
   try {
     bundleCid = await pinSignalBundle(bundle.bundleId, bundle);
@@ -127,11 +180,11 @@ export async function runDecisionCycle(): Promise<void> {
     console.warn(`[Cron] IPFS pin failed (non-fatal): ${err.message}`);
   }
 
-  // ─── STEP 3: WEIGH — Score assets, generate decision ─────────────────────
+  // STEP 3: WEIGH
   const decisionOrSkip = generateDecision(bundle);
   const isSkip = "skipReason" in decisionOrSkip;
 
-  // ─── STEP 4: BYREAL — Check cross-chain CLMM opportunity (parallel) ──────
+  // STEP 4: BYREAL
   try {
     const byrealPool = await analyzeByrealPool("H1ByEjzUbD2xBoqhGnqFQr8WeumXBor6hTtB6f4NjjW");
     const byrealApr  = byrealPool?.apr || 0;
@@ -169,7 +222,7 @@ export async function runDecisionCycle(): Promise<void> {
     console.warn(`[Cron] Byreal check (non-fatal): ${err.message}`);
   }
 
-  // ─── STEP 5: EXECUTE or record skip ──────────────────────────────────────
+  // STEP 5: EXECUTE or SKIP
   let decision: Decision | null = null;
   let skipReason: SkipReason | null = null;
   let reasoning = "";
@@ -211,7 +264,7 @@ export async function runDecisionCycle(): Promise<void> {
     }
   }
 
-  // ─── STEP 6: ZK PROOF — Always generate (proves signal state) ───────────
+  // STEP 6: ZK PROOF
   let proof;
   try {
     console.log("[Cron] Generating ZK proof...");
@@ -219,11 +272,7 @@ export async function runDecisionCycle(): Promise<void> {
       bundle.pyth.xstockPrices?.NVDAx || 0,
       bundle.pyth.usdyYield            || 0,
       bundle.pyth.mEthApr              || 0,
-      {
-        mETH:     bundle.mantle.currentAllocation.mETH  || 4000,
-        USDY:     bundle.mantle.currentAllocation.USDY  || 4000,
-        xStocks:  bundle.mantle.currentAllocation.NVDAx || 2000,
-      },
+      { mETH: bundle.mantle.currentAllocation.mETH || 4000, USDY: bundle.mantle.currentAllocation.USDY || 4000, xStocks: bundle.mantle.currentAllocation.NVDAx || 2000 },
       { mETH: 3800, USDY: 4200, xStocks: 2000 }
     );
     proof = await generateRebalanceProof(proofInput);
@@ -233,7 +282,7 @@ export async function runDecisionCycle(): Promise<void> {
     console.warn(`[Cron] ZK proof (non-fatal): ${err.message}`);
   }
 
-  // ─── STEP 7: IPFS — Pin proof metadata (always) ──────────────────────────
+  // STEP 7: IPFS — pin proof metadata
   let proofMetaCid = "";
   try {
     const proofMetadata = {
@@ -261,24 +310,15 @@ export async function runDecisionCycle(): Promise<void> {
     console.warn(`[Cron] Proof metadata pin (non-fatal): ${err.message}`);
   }
 
-  // ─── STEP 8: ERC-8004 — Reputation + ZK validation (always) ─────────────
+  // STEP 8: ERC-8004
   if (agentId) {
     try {
-      const reputationScore = executionOk
-        ? 85 + ((decision?.confidence || 0) - 0.55) * 50
-        : 70;
-      await submitReputationFeedback(
-        agentId,
-        decision?.txHash || `skip-${Date.now()}`,
-        reputationScore,
-        proofMetaCid || bundleCid,
-        ERC8004_REPUTATION_REGISTRY
-      );
+      const reputationScore = executionOk ? 85 + ((decision?.confidence || 0) - 0.55) * 50 : 70;
+      await submitReputationFeedback(agentId, decision?.txHash || `skip-${Date.now()}`, reputationScore, proofMetaCid || bundleCid, ERC8004_REPUTATION_REGISTRY);
       console.log(`[Cron] ✅ Reputation updated: ${reputationScore.toFixed(1)}`);
     } catch (err: any) {
       console.warn(`[Cron] Reputation submit (non-fatal): ${err.message}`);
     }
-
     if (proof) {
       try {
         await submitValidationProof(agentId, proof, ERC8004_VALIDATION_REGISTRY);
@@ -289,16 +329,12 @@ export async function runDecisionCycle(): Promise<void> {
     }
   }
 
-  // ─── STEP 9: VIGILVault — Log to chain (always) ──────────────────────────
-  await logToVault(
-    executionOk ? decision : null,
-    skipReason,
-    reasoning,
-    bundle.bundleId,
-    bundleCid
-  );
+  // STEP 9: VIGILVault log
+  await logToVault(executionOk ? decision : null, skipReason, reasoning, bundle.bundleId, bundleCid);
 
   const elapsed = ((Date.now() - cycleStart) / 1000).toFixed(1);
+  lastStatus = isSkip ? `skip:${skipReason}` : `executed:${decision?.fromAsset}→${decision?.toAsset}`;
+
   console.log(`\n${"─".repeat(52)}`);
   console.log(`  ✅ Cycle complete in ${elapsed}s`);
   console.log(`  Decision:    ${isSkip ? `SKIP (${skipReason})` : `EXECUTE ${decision?.fromAsset} → ${decision?.toAsset}`}`);
@@ -310,50 +346,25 @@ export async function runDecisionCycle(): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VAULT LOGGING (always called, handles both SKIP and EXECUTE)
+// VAULT LOGGING
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function logToVault(
-  decision: Decision | null,
-  skipReason: SkipReason | null,
-  reasoning: string,
-  bundleId: string,
-  bundleCid: string
-): Promise<void> {
+async function logToVault(decision: Decision | null, skipReason: SkipReason | null, reasoning: string, bundleId: string, bundleCid: string): Promise<void> {
   if (!VIGIL_VAULT_ADDRESS) {
     console.warn("[Cron] VIGIL_VAULT_ADDRESS not set — vault log skipped");
     return;
   }
-
   try {
     if (skipReason || !decision) {
-      const vault = new ethers.Contract(
-        VIGIL_VAULT_ADDRESS,
-        ["function recordSkip(string calldata reason, uint256 confidence) external"],
-        agentWallet
-      );
+      const vault = new ethers.Contract(VIGIL_VAULT_ADDRESS, ["function recordSkip(string calldata reason, uint256 confidence) external"], agentWallet);
       const nonce = await agentWallet.getNonce("pending");
       const tx = await vault.recordSkip(skipReason || "EXECUTION_ERROR", 0, { gasLimit: 80_000, nonce });
       console.log(`[Cron] ✅ Vault skip logged: ${tx.hash}`);
     } else {
-      const vault = new ethers.Contract(
-        VIGIL_VAULT_ADDRESS,
-        ["function executeRebalance(address fromToken, address toToken, uint256 amount, uint256 slippageBps, bytes calldata executionData) external"],
-        agentWallet
-      );
-      const execData = ethers.AbiCoder.defaultAbiCoder().encode(
-        ["string", "string"],
-        [decision.txHash || "0x", bundleCid]
-      );
+      const vault = new ethers.Contract(VIGIL_VAULT_ADDRESS, ["function executeRebalance(address fromToken, address toToken, uint256 amount, uint256 slippageBps, bytes calldata executionData) external"], agentWallet);
+      const execData = ethers.AbiCoder.defaultAbiCoder().encode(["string", "string"], [decision.txHash || "0x", bundleCid]);
       const nonce = await agentWallet.getNonce("pending");
-      const tx = await vault.executeRebalance(
-        decision.fromToken,
-        decision.toToken,
-        BigInt(Math.round(decision.amount)),
-        BigInt(decision.slippageBps || 0),
-        execData,
-        { gasLimit: 250_000, nonce }
-      );
+      const tx = await vault.executeRebalance(decision.fromToken, decision.toToken, BigInt(Math.round(decision.amount)), BigInt(decision.slippageBps || 0), execData, { gasLimit: 250_000, nonce });
       console.log(`[Cron] ✅ Vault execute logged: ${tx.hash}`);
     }
   } catch (err: any) {
@@ -366,6 +377,9 @@ async function logToVault(
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function main() {
+  // Start health server FIRST — Render needs to see the port immediately
+  startHealthServer();
+
   await spawnAgent();
   await runDecisionCycle();
 
@@ -373,7 +387,7 @@ async function main() {
   cronTask = cron.schedule(CRON_SCHEDULE, async () => {
     await runDecisionCycle();
   });
-  console.log("[Cron] ✅ VIGIL agent running. Press Ctrl+C to stop.\n");
+  console.log("[Cron] ✅ VIGIL agent running.\n");
 
   process.on("SIGINT", () => {
     console.log("\n[Cron] SIGINT — shutting down VIGIL agent");
