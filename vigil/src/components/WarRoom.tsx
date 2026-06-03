@@ -506,7 +506,7 @@ export default function WarRoom({ walletAddress, agentId, volatility, onVolatili
               <div className="flex-1">
                 <div className="flex items-center justify-between">
                   <h4 className="font-sans text-sm text-white font-black uppercase tracking-tighter">Agent #{agentId} • VIGIL</h4>
-                  <span className="text-[10px] font-mono text-[#00FF7F] bg-[#00FF7F]/10 border border-[#00FF7F]/25 px-2 py-0.5 rounded-sm uppercase font-bold text-[9px]">Mantle L2</span>
+                  <span className="text-[10px] font-mono text-[#00FF7F] bg-[#00FF7F]/10 border border-[#00FF7F]/25 px-2 py-0.5 rounded-sm uppercase font-bold">Mantle L2</span>
                 </div>
                 <p className="text-xs text-gray-500 font-mono mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">Owner: {walletAddress}</p>
               </div>
@@ -609,7 +609,7 @@ export default function WarRoom({ walletAddress, agentId, volatility, onVolatili
                         {dec.action !== 'SKIP' && <span className="text-[#00FF7F] font-bold">{dec.outcomeDelta?.split(' ')[0]}</span>}
                       </span>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-white group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-white group-hover:translate-x-0.5 transition-all shrink-0" />
                   </div>
                 ))}
               </div>
