@@ -1,4 +1,6 @@
 import { ethers } from "ethers";
+import * as fs from "fs";
+import * as path from "path";
 import {
   provider,
   agentWallet,
@@ -13,26 +15,47 @@ import { AgentCard, SerializedProof } from "../types";
 
 /**
  * VIGIL ERC-8004 Identity Module
- * Handles agent identity minting, reputation scoring, and validation proof submission.
  *
  * Three registries used:
- * 1. Identity Registry  — Mint agent NFT at spawn; register agent card CID on IPFS
- * 2. Reputation Registry — Submit performance feedback after every executed decision
- * 3. Validation Registry — Submit Groth16 ZK proof after every rebalancing execution
+ * 1. Identity Registry  — Mint agent NFT at spawn
+ * 2. Reputation Registry — Submit performance feedback after every decision
+ * 3. Validation Registry — Submit Groth16 ZK proof after every execution
  *
- * Contract addresses from: https://github.com/sudeepb02/awesome-erc8004
- * ERC-8004 spec: https://eips.ethereum.org/EIPS/eip-8004
+ * On Mantle Sepolia testnet, the CREATE2 ERC-8004 registries are not deployed.
+ * VIGIL uses a synthetic agent ID (derived from wallet address) as fallback,
+ * persisted to .agent-state.json so it survives restarts.
  */
 
-// ─── Cached agent ID ─────────────────────────────────────────────────────────
+// ─── Persistent Agent State ───────────────────────────────────────────────────
+const STATE_FILE = path.join(__dirname, "../../.agent-state.json");
+
+function loadState(): { agentId?: string; agentCid?: string } {
+  try {
+    if (fs.existsSync(STATE_FILE)) {
+      return JSON.parse(fs.readFileSync(STATE_FILE, "utf-8"));
+    }
+  } catch { /* ignore */ }
+  return {};
+}
+
+export function saveAgentId(id: string, cid?: string): void {
+  try {
+    const state = loadState();
+    state.agentId = id;
+    if (cid) state.agentCid = cid;
+    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+    console.log(`[ERC-8004] Agent state saved: ID=${id}`);
+  } catch (e: any) {
+    console.warn(`[ERC-8004] Could not save agent state: ${e.message}`);
+  }
+}
+
+// ─── In-memory cache ──────────────────────────────────────────────────────────
 let _cachedAgentId: string | null = null;
 
 /**
- * Mint the agent's ERC-8004 identity NFT on the testnet Identity Registry.
- * Called once at agent spawn. Returns the token ID.
- *
- * @param agentCardCid The IPFS CID of the pinned Agent Card JSON
- * @returns The minted ERC-8004 token ID (as string)
+ * Mint the agent's ERC-8004 identity NFT on the Identity Registry.
+ * Called once at agent spawn.
  */
 export async function mintAgentIdentity(agentCardCid: string): Promise<string> {
   if (!ERC8004_IDENTITY_REGISTRY) {
@@ -58,7 +81,6 @@ export async function mintAgentIdentity(agentCardCid: string): Promise<string> {
 
   if (!receipt) throw new Error("Identity mint transaction failed");
 
-  // The tokenId is in the first Transfer event log: topics[3]
   const transferLog = receipt.logs[0];
   const agentId = transferLog.topics[3]
     ? BigInt(transferLog.topics[3]).toString()
@@ -67,6 +89,7 @@ export async function mintAgentIdentity(agentCardCid: string): Promise<string> {
     : "0";
 
   _cachedAgentId = agentId;
+  saveAgentId(agentId, agentCardCid);
 
   console.log(`[ERC-8004] ✅ Agent identity minted! Token ID: ${agentId}`);
   console.log(`[ERC-8004] View on explorer: https://erc8004.quicknode.com`);
@@ -76,7 +99,6 @@ export async function mintAgentIdentity(agentCardCid: string): Promise<string> {
 
 /**
  * Register the agent card CID on-chain after minting.
- * Links the IPFS metadata to the token ID.
  */
 export async function setAgentCard(tokenId: string, cid: string): Promise<void> {
   if (!ERC8004_IDENTITY_REGISTRY) return;
@@ -94,12 +116,6 @@ export async function setAgentCard(tokenId: string, cid: string): Promise<void> 
 
 /**
  * Submit performance feedback to the ERC-8004 Reputation Registry.
- * Called after every executed decision (not skipped ones).
- *
- * @param agentId ERC-8004 token ID
- * @param taskId Unique task identifier (keccak256 of txHash)
- * @param score Performance score (-100 to 100, scaled by 10)
- * @param metadataCid IPFS CID of detailed performance metadata
  */
 export async function submitReputationFeedback(
   agentId: string,
@@ -120,17 +136,14 @@ export async function submitReputationFeedback(
       agentWallet
     );
 
-    // ERC-8004 spec: score is int128 with 2 decimal places
-    // score = 85.5 → BigInt(855), decimals = 1
-    // We normalize score to [-100, 100] → int128 with 2 decimals
     const scaledScore = BigInt(Math.round(score * 10));
-    const taskIdBytes = ethers.id(taskId).slice(0, 66); // bytes32
+    const taskIdBytes = ethers.id(taskId).slice(0, 66);
 
     const tx = await reputationRegistry.submitFeedback(
       BigInt(agentId),
       taskIdBytes,
       scaledScore,
-      1n, // 1 decimal place
+      1n,
       metadataCid,
       { gasLimit: 150_000 }
     );
@@ -139,17 +152,11 @@ export async function submitReputationFeedback(
     console.log(`[ERC-8004] Reputation feedback submitted: score ${score}, task ${taskId}`);
   } catch (err) {
     console.error("[ERC-8004] Failed to submit reputation feedback:", err);
-    // Non-fatal: agent continues even if reputation submission fails
   }
 }
 
 /**
  * Submit a Groth16 ZK proof to the ERC-8004 Validation Registry.
- * This is the cryptographic proof that VIGIL's rebalancing math is correct.
- *
- * @param agentId ERC-8004 token ID
- * @param proof The serialized Groth16 proof
- * @param validationRegistryAddress The Validation Registry contract address
  */
 export async function submitValidationProof(
   agentId: string,
@@ -177,14 +184,13 @@ export async function submitValidationProof(
       BigInt(agentId),
       proof.proofBytes,
       VERIFIER_ADDRESS,
-      { gasLimit: 400_000 } // ZK proof verification is expensive
+      { gasLimit: 400_000 }
     );
 
     await tx.wait();
     console.log(`[ERC-8004] ZK proof submitted to Validation Registry: ${proof.proofHash}`);
   } catch (err) {
     console.error("[ERC-8004] Failed to submit validation proof:", err);
-    // Non-fatal
   }
 }
 
@@ -206,7 +212,7 @@ export async function getReputationScore(
 
     const [score, totalFeedback] = await reputationRegistry.getReputation(BigInt(agentId));
     return {
-      score: Number(score) / 10, // reverse the 10x scaling
+      score: Number(score) / 10,
       totalFeedback: Number(totalFeedback),
     };
   } catch {
@@ -215,27 +221,41 @@ export async function getReputationScore(
 }
 
 /**
- * Get or load the cached agent ID.
- * Falls back to reading from VIGILVault if not cached.
+ * Get or load the agent ID.
+ *
+ * Resolution order:
+ * 1. In-memory cache (fastest)
+ * 2. VIGILVault.erc8004AgentId() on-chain read
+ * 3. Local .agent-state.json file (survives restarts, stores synthetic ID)
+ *
+ * The synthetic ID is generated by spawnAgent() when the ERC-8004 registry
+ * isn't deployed on the current testnet.
  */
 export async function getAgentId(): Promise<string | null> {
+  // 1. Memory cache
   if (_cachedAgentId) return _cachedAgentId;
 
-  if (!VIGIL_VAULT_ADDRESS) return null;
+  // 2. On-chain from VIGILVault
+  if (VIGIL_VAULT_ADDRESS) {
+    try {
+      const vault = new ethers.Contract(
+        VIGIL_VAULT_ADDRESS,
+        ["function erc8004AgentId() view returns (uint256)"],
+        provider
+      );
+      const id = await vault.erc8004AgentId();
+      if (id > 0n) {
+        _cachedAgentId = id.toString();
+        return _cachedAgentId;
+      }
+    } catch { /* not yet set */ }
+  }
 
-  try {
-    const vault = new ethers.Contract(
-      VIGIL_VAULT_ADDRESS,
-      ["function erc8004AgentId() view returns (uint256)"],
-      provider
-    );
-    const id = await vault.erc8004AgentId();
-    if (id > 0n) {
-      _cachedAgentId = id.toString();
-      return _cachedAgentId;
-    }
-  } catch {
-    // Not yet set
+  // 3. Local state file (synthetic ID from testnet spawn)
+  const state = loadState();
+  if (state.agentId) {
+    _cachedAgentId = state.agentId;
+    return _cachedAgentId;
   }
 
   return null;
@@ -243,7 +263,6 @@ export async function getAgentId(): Promise<string | null> {
 
 /**
  * Build the ERC-8004 compliant Agent Card JSON structure.
- * This is pinned to IPFS and its CID registered on-chain.
  */
 export function buildAgentCard(agentWalletAddress: string): AgentCard {
   return {
