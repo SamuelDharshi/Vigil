@@ -132,7 +132,7 @@ export default function ProofModal({ decision, onClose }: ProofModalProps) {
                     {(decision.confidence * 100).toFixed(0)}%
                   </span>
                   <div className="flex-1 h-1.5 bg-black/60 rounded-sm overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-[#00FF7F] to-cyan-500" style={{ width: `${decision.confidence * 100}%` }} />
+                    <div className="h-full bg-linear-to-r from-[#00FF7F] to-cyan-500" style={{ width: `${decision.confidence * 100}%` }} />
                   </div>
                 </div>
               </div>
@@ -172,7 +172,7 @@ export default function ProofModal({ decision, onClose }: ProofModalProps) {
 
               {/* Right Column: On-Chain Offsets and Guardrails */}
               <div className="space-y-4">
-                <span className="block text-xs font-mono text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+                <span className="flex text-xs font-mono text-gray-400 uppercase tracking-wide items-center gap-1.5">
                   <Lock className="w-4 h-4 text-[#00f0ff]" /> Immutable Smart Contract Guardrails
                 </span>
 
