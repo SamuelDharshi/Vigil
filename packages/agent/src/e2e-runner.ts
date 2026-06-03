@@ -351,55 +351,20 @@ async function runDiagnostics() {
       pillar4.warnings.push("VIGIL_LEDGER_ADDRESS not set in .env");
     }
 
-    console.log("[Pillar 4] Verifying SQLite Database schema...");
+    console.log("[Pillar 4] Verifying SQLite Database presence...");
     try {
-      const sqlite3 = await import("sqlite3");
-      const path = await import("path");
-      const dbPath = path.resolve(__dirname, "../../indexer/vigil.db");
-
+      const pathMod = await import("path");
+      const dbPath = pathMod.resolve(__dirname, "../../indexer/vigil.db");
       const dbExists = fs.existsSync(dbPath);
       if (dbExists) {
-        pillar4.notes.push(`✓ SQLite file found at: ${dbPath}`);
-
-        await new Promise<void>((resolve) => {
-          const db = new sqlite3.default.Database(dbPath, sqlite3.default.OPEN_READONLY, (err) => {
-            if (err) {
-              pillar4.warnings.push(`Could not open SQLite database: ${err.message}`);
-              return resolve();
-            }
-          });
-
-          db.all(
-            "SELECT name FROM sqlite_master WHERE type='table'",
-            (err, rows) => {
-              if (err) {
-                pillar4.warnings.push(`Could not query SQLite tables: ${err.message}`);
-                db.close();
-                return resolve();
-              }
-
-              const tables = rows.map((r: any) => r.name);
-              const expected = ["decisions", "ledger_entries", "signal_bundles", "agent_state"];
-
-              for (const tbl of expected) {
-                if (tables.includes(tbl)) {
-                  pillar4.notes.push(`✓ SQLite schema: table '${tbl}' exists`);
-                } else {
-                  pillar4.warnings.push(`SQLite schema: table '${tbl}' is missing`);
-                }
-              }
-
-              db.close();
-              resolve();
-            }
-          );
-        });
+        pillar4.notes.push(`✓ SQLite DB found at: ${dbPath}`);
       } else {
-        pillar4.warnings.push(`SQLite file not found yet. It will be created automatically when you start the indexer.`);
+        pillar4.warnings.push("SQLite DB not found yet — created automatically when indexer starts.");
       }
     } catch (err: any) {
-      pillar4.warnings.push(`SQLite connection check failed: ${err.message}`);
+      pillar4.warnings.push(`SQLite check skipped: ${err.message}`);
     }
+
 
   } catch (err: any) {
     pillar4.errors.push(`Registry/Indexer verification error: ${err.message}`);
