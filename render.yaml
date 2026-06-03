@@ -1,0 +1,38 @@
+services:
+  # ─── VIGIL Agent — Background Worker on Render Free Tier ─────────────────
+  - type: web          # "web" keeps the process alive (not "worker" which lacks free tier)
+    name: vigil-agent
+    runtime: node
+    region: oregon      # closest to Mantle Sepolia RPC
+    plan: free
+    rootDir: packages/agent
+    buildCommand: npm install && npm run build
+    startCommand: node dist/cron.js
+    healthCheckPath: /health
+
+    envVars:
+      # ── Required — set these in Render Dashboard ─────────────────────────
+      - key: AGENT_PRIVATE_KEY
+        sync: false        # set manually in dashboard (never commit!)
+
+      - key: PINATA_JWT
+        sync: false
+
+      - key: NANSEN_API_KEY
+        sync: false
+
+      - key: ELFA_API_KEY
+        sync: false
+
+      # ── Network — Mantle Sepolia ──────────────────────────────────────────
+      - key: MANTLE_RPC_URL
+        value: https://rpc.sepolia.mantle.xyz
+
+      - key: VIGIL_VAULT_ADDRESS
+        value: "0x2D252F4b54A2F8F4c43E6e3CF437B60b9058991F"
+
+      - key: NODE_ENV
+        value: production
+
+      - key: PORT
+        value: "10000"
