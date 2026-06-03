@@ -55,6 +55,10 @@ packages/agent/circuits/*.sym
 packages/agent/circuits/*.wtns
 packages/agent/circuits/witness
 packages/agent/circuits/build/
+packages/agent/circuits/circom.exe
+packages/agent/circuits/setup.js
+packages/agent/circuits/*_js/
+packages/agent/circuits/*_vkey.json
 
 # ─── SQLite database ────────────────────────────────────
 # The indexer's local database — regenerated at runtime
@@ -76,6 +80,13 @@ packages/frontend/next-env.d.ts
 # IPFS upload caches, tmp bundles
 packages/agent/src/tmp/
 packages/agent/*.bundle.json
+packages/agent/.agent-state.json
+
+# ─── Nested Vite app workspace ──────────────────────────
+vigil/node_modules/
+vigil/package-lock.json
+vigil/dist/
+vigil/.vite/
 
 # ─── OS / Editor junk ───────────────────────────────────
 .DS_Store
