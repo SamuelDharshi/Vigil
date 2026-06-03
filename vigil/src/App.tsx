@@ -54,7 +54,7 @@ export default function App() {
       {/* Floating Header */}
       <header className="fixed top-0 left-0 right-0 h-16 border-b border-white/5 bg-[#020202]/90 backdrop-blur-md z-40 px-4 md:px-8 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded bg-gradient-to-br from-[#00FF7F] to-cyan-400 p-0.5">
+          <div className="w-8 h-8 rounded bg-linear-to-br from-[#00FF7F] to-cyan-400 p-0.5">
             <div className="w-full h-full bg-[#020202] rounded-sm flex items-center justify-center font-serif font-black text-[#00FF7F] text-md">
               V
             </div>
