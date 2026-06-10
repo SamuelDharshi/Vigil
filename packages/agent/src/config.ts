@@ -40,6 +40,7 @@ export const agentWallet = new ethers.Wallet(
 // ─── VIGIL Deployed Contracts ─────────────────────
 export const VIGIL_VAULT_ADDRESS   = CONTRACTS.VIGILVault;
 export const VIGIL_LEDGER_ADDRESS  = CONTRACTS.VIGILLedger;
+export const VIGIL_MOCK_DEX_ADDRESS = CONTRACTS.VIGILMockDEX;
 export const VERIFIER_ADDRESS      = process.env.VERIFIER_ADDRESS      || "";
 
 // ─── ERC-8004 Registry Addresses ─────────────────────────────

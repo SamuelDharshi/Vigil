@@ -23,8 +23,10 @@ import {
   agentWallet,
   CRON_SCHEDULE,
   VIGIL_VAULT_ADDRESS,
+  VIGIL_MOCK_DEX_ADDRESS,
   ERC8004_REPUTATION_REGISTRY,
   ERC8004_VALIDATION_REGISTRY,
+  TOKEN_ADDRESSES,
 } from "./config";
 import { Decision, SkipReason } from "./types";
 
@@ -340,6 +342,9 @@ export async function runDecisionCycle(): Promise<void> {
     decision?.confidence || 0
   );
 
+  // Self-Sustaining Yield-to-Gas Loop
+  await runYieldToGasLoop();
+
   const elapsed = ((Date.now() - cycleStart) / 1000).toFixed(1);
   lastStatus = isSkip ? `skip:${skipReason}` : `executed:${decision?.fromAsset}→${decision?.toAsset}`;
 
@@ -404,6 +409,7 @@ async function logToVault(
         { gasLimit: 300_000, nonce }
       );
       console.log(`[Cron] ✅ Vault skip logged: ${tx.hash}`);
+      await tx.wait();
       console.log(`[Cron]    zkProofHash: ${proofHashBytes32}`);
       console.log(`[Cron]    signalBundleHash: ${signalBundleHash}`);
     } else {
@@ -433,6 +439,7 @@ async function logToVault(
         { gasLimit: 400_000, nonce }
       );
       console.log(`[Cron] ✅ Vault execute logged: ${tx.hash}`);
+      await tx.wait();
       console.log(`[Cron]    zkProofHash: ${proofHashBytes32}`);
       console.log(`[Cron]    signalBundleHash: ${signalBundleHash}`);
     }
@@ -505,3 +512,114 @@ async function main() {
 if (require.main === module) {
   main().catch(console.error);
 }
+
+async function runYieldToGasLoop(): Promise<void> {
+  if (!VIGIL_VAULT_ADDRESS || !VIGIL_MOCK_DEX_ADDRESS) {
+    console.warn("[Gas Loop] ⚠ Vault or MockDEX address not configured — yield loop skipped");
+    return;
+  }
+
+  console.log(`\n${"═".repeat(40)}`);
+  console.log("  [Gas Loop] STARTING YIELD-TO-GAS ROUTING  ");
+  console.log(`${"═".repeat(40)}`);
+
+  try {
+    const mETHAddress = TOKEN_ADDRESSES.mETH;
+    const mntAddress  = TOKEN_ADDRESSES.MNT;
+
+    const mETH = new ethers.Contract(
+      mETHAddress,
+      [
+        "function mint(address to, uint256 amount) external",
+        "function approve(address spender, uint256 amount) external returns (bool)",
+        "function balanceOf(address account) external view returns (uint256)",
+      ],
+      agentWallet
+    );
+
+    const mntToken = new ethers.Contract(
+      mntAddress,
+      [
+        "function mint(address to, uint256 amount) external",
+        "function approve(address spender, uint256 amount) external returns (bool)",
+        "function balanceOf(address account) external view returns (uint256)",
+      ],
+      agentWallet
+    );
+
+    const dex = new ethers.Contract(
+      VIGIL_MOCK_DEX_ADDRESS,
+      [
+        "function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, address[] calldata path, address to, uint256 deadline) external returns (uint256[] memory amounts)",
+      ],
+      agentWallet
+    );
+
+    const vault = new ethers.Contract(
+      VIGIL_VAULT_ADDRESS,
+      [
+        "function fundGasReservoir(uint256 mntAmount) external",
+        "function gasReservoir() view returns (uint256)",
+      ],
+      agentWallet
+    );
+
+    // Step 1: Claim Yield (simulate yield by minting 0.05 mETH directly to agent wallet)
+    const claimAmount = ethers.parseEther("0.05");
+    console.log(`[Gas Loop] Claiming mETH yield (minting ${ethers.formatEther(claimAmount)} mETH)...`);
+    let tx = await mETH.mint(agentWallet.address, claimAmount);
+    await tx.wait();
+    console.log(`[Gas Loop] Yield claimed in TX: ${tx.hash}`);
+
+    // Step 2: Approve MockDEX to spend mETH
+    console.log(`[Gas Loop] Approving MockDEX to spend ${ethers.formatEther(claimAmount)} mETH...`);
+    tx = await mETH.approve(VIGIL_MOCK_DEX_ADDRESS, claimAmount);
+    await tx.wait();
+
+    // Ensure MockDEX has MNT liquidity to facilitate the swap
+    console.log(`[Gas Loop] Funding VIGILMockDEX with ${ethers.formatEther(claimAmount)} MNT liquidity...`);
+    tx = await mntToken.mint(VIGIL_MOCK_DEX_ADDRESS, claimAmount);
+    await tx.wait();
+
+    // Step 3: Swap mETH for MNT via MockDEX
+    const swapAmountOutMin = claimAmount; // 1:1 swap rate on MockDEX
+    const path = [mETHAddress, mntAddress];
+    const deadline = Math.floor(Date.now() / 1000) + 600;
+
+    console.log(`[Gas Loop] Swapping mETH for MNT via VIGILMockDEX...`);
+    tx = await dex.swapExactTokensForTokens(
+      claimAmount,
+      swapAmountOutMin,
+      path,
+      agentWallet.address,
+      deadline
+    );
+    await tx.wait();
+    console.log(`[Gas Loop] Swap complete in TX: ${tx.hash}`);
+
+    // Step 4: Approve VIGILVault to spend MNT
+    const mntBalance = await mntToken.balanceOf(agentWallet.address);
+    console.log(`[Gas Loop] Swapped successfully. MNT Balance: ${ethers.formatEther(mntBalance)} MNT`);
+    const fundAmount = mntBalance < swapAmountOutMin ? mntBalance : swapAmountOutMin;
+
+    if (fundAmount > 0n) {
+      console.log(`[Gas Loop] Approving VIGILVault to spend ${ethers.formatEther(fundAmount)} MNT...`);
+      tx = await mntToken.approve(VIGIL_VAULT_ADDRESS, fundAmount);
+      await tx.wait();
+
+      // Step 5: Fund Gas Reservoir
+      console.log(`[Gas Loop] Funding VIGILVault Gas Reservoir with ${ethers.formatEther(fundAmount)} MNT...`);
+      tx = await vault.fundGasReservoir(fundAmount);
+      await tx.wait();
+      
+      const newReservoir = await vault.gasReservoir();
+      console.log(`[Gas Loop] ✅ Yield-to-Gas loop complete! Gas Reservoir funded: ${ethers.formatEther(newReservoir)} MNT`);
+    } else {
+      console.warn("[Gas Loop] ⚠ Zero MNT to fund. Skipping fund step.");
+    }
+  } catch (err: any) {
+    console.error("[Gas Loop] ❌ Error executing Yield-to-Gas loop:", err.message);
+  }
+  console.log(`${"═".repeat(40)}\n`);
+}
+
