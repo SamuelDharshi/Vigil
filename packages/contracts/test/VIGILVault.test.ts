@@ -208,7 +208,7 @@ describe("VIGILVault — Guardrail Enforcement", function () {
       await expect(
         vault.connect(agent).executeRebalance(
           await mETHToken.getAddress(),
-          await usdyToken.getAddress(),
+          await mntToken.getAddress(),
           1000n * DECIMALS_6,
           40n,  // Exactly at cap
           "0x"
@@ -220,7 +220,7 @@ describe("VIGILVault — Guardrail Enforcement", function () {
       await expect(
         vault.connect(agent).executeRebalance(
           await mETHToken.getAddress(),
-          await usdyToken.getAddress(),
+          await mntToken.getAddress(),
           1000n * DECIMALS_6,
           0n,
           "0x"
@@ -278,7 +278,7 @@ describe("VIGILVault — Guardrail Enforcement", function () {
       await expect(
         vault.connect(agent).executeRebalance(
           await mETHToken.getAddress(),
-          await usdyToken.getAddress(),
+          await mntToken.getAddress(),
           10_000n * DECIMALS_6,  // $10,000 exactly
           10n,
           "0x"
@@ -444,7 +444,7 @@ describe("VIGILVault — Guardrail Enforcement", function () {
   describe("Happy Path: Successful Decision Execution", function () {
     it("PASS: emits DecisionExecuted with correct params", async function () {
       const fromToken = await mETHToken.getAddress();
-      const toToken = await usdyToken.getAddress();
+      const toToken = await mntToken.getAddress();
       const amount = 1000n * DECIMALS_6;
       const slippage = 12n;
       const execData = ethers.toUtf8Bytes("fluxion_quote_data");
@@ -462,7 +462,7 @@ describe("VIGILVault — Guardrail Enforcement", function () {
       const before = await vault.totalDecisions();
       await vault.connect(agent).executeRebalance(
         await mETHToken.getAddress(),
-        await usdyToken.getAddress(),
+        await mntToken.getAddress(),
         1000n * DECIMALS_6,
         10n,
         "0x"
@@ -474,7 +474,7 @@ describe("VIGILVault — Guardrail Enforcement", function () {
       const amount = 1000n * DECIMALS_6;
       await vault.connect(agent).executeRebalance(
         await mETHToken.getAddress(),
-        await usdyToken.getAddress(),
+        await mntToken.getAddress(),
         amount,
         10n,
         "0x"

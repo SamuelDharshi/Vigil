@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-import "../VIGILVault.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-/// @title FluxionAdapter
-/// @notice Execution adapter for Fluxion xChange Atomic RFQ trades.
-///         VIGIL uses this to execute xStocks trades with issuer-direct pricing.
-///         Implements the two-step requestQuote → swapWithQuote flow.
-/// @dev Called via delegatecall from VIGILVault during rebalancing execution.
+interface IUniswapV2Router {
+    function swapExactTokensForTokens(
+        uint256 amountIn,
+        uint256 amountOutMin,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external returns (uint256[] memory amounts);
+}
+
 interface IFluxionXChange {
     struct Quote {
         bytes32 quoteId;
@@ -29,8 +34,6 @@ interface IFluxionXChange {
 }
 
 contract FluxionAdapter {
-
-    /// @notice Hardcoded slippage cap — cannot be overridden by the agent
     uint256 public constant MAX_SLIPPAGE_BPS = 40; // 0.40%
 
     event FluxionSwapExecuted(
@@ -45,41 +48,45 @@ contract FluxionAdapter {
     error SlippageCapBreached(uint256 actual, uint256 max);
     error QuoteExpired(uint256 deadline, uint256 currentTime);
 
-    /// @notice Execute an xStocks trade via Fluxion xChange Atomic RFQ.
-    ///         Quote is pre-fetched off-chain and validated here.
-    /// @param xchangeAddress The Fluxion xChange contract address (from env)
-    /// @param quote The pre-fetched and signed RFQ quote
-    /// @param minAmountOut The minimum acceptable output amount (slippage protection)
+    // Using VIGILMockDEX as testnet swap venue — production will use Fluxion Atomic RFQ
+    function executeSwap(
+        address routerAddress,
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 minAmountOut
+    ) external returns (uint256 amountOut) {
+        IERC20(tokenIn).approve(routerAddress, amountIn);
+
+        address[] memory path = new address[](2);
+        path[0] = tokenIn;
+        path[1] = tokenOut;
+
+        uint256[] memory amounts = IUniswapV2Router(routerAddress).swapExactTokensForTokens(
+            amountIn,
+            minAmountOut,
+            path,
+            address(this),
+            block.timestamp + 600
+        );
+
+        amountOut = amounts[amounts.length - 1];
+
+        emit FluxionSwapExecuted(
+            tokenIn,
+            tokenOut,
+            amountIn,
+            amountOut,
+            0,
+            bytes32(0)
+        );
+    }
+
     function executeWithQuote(
         address xchangeAddress,
         IFluxionXChange.Quote calldata quote,
         uint256 minAmountOut
     ) external returns (uint256 amountOut) {
-        // Validate quote hasn't expired
-        if (block.timestamp > quote.deadline) {
-            revert QuoteExpired(quote.deadline, block.timestamp);
-        }
-
-        // Validate slippage on the quote itself
-        if (quote.priceImpactBps > MAX_SLIPPAGE_BPS) {
-            revert SlippageCapBreached(quote.priceImpactBps, MAX_SLIPPAGE_BPS);
-        }
-
-        IFluxionXChange xchange = IFluxionXChange(xchangeAddress);
-        amountOut = xchange.swapWithQuote(
-            quote.quoteId,
-            minAmountOut,
-            quote.deadline,
-            quote.signature
-        );
-
-        emit FluxionSwapExecuted(
-            quote.tokenIn,
-            quote.tokenOut,
-            quote.amountIn,
-            amountOut,
-            quote.priceImpactBps,
-            quote.quoteId
-        );
+        revert("Fluxion xChange not available on Mantle Sepolia - cannot execute xStocks trade");
     }
 }

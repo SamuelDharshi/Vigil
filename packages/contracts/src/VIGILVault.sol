@@ -4,6 +4,7 @@ pragma solidity ^0.8.25;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "./VIGILLedger.sol";
 
 /// @title VIGILVault
 /// @notice Primary on-chain guardrail contract for the VIGIL autonomous portfolio agent.
@@ -74,6 +75,18 @@ contract VIGILVault is Ownable, ReentrancyGuard {
     uint256 public totalSkipped;
 
     // ─────────────────────────────────────────────────────────────────────────
+    // ADAPTER STATE & ADAPTERS
+    // ─────────────────────────────────────────────────────────────────────────
+    address public fluxionAdapter;
+    address public superPortalAdapter;
+    address public ledgerContract;
+    bool public xStocksEnabled;  // false on Sepolia, true on Mainnet
+    uint256 public immutable deployedAt;
+
+    address public mETH_TOKEN;
+    address public USDY_TOKEN;
+
+    // ─────────────────────────────────────────────────────────────────────────
     // EVENTS
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -102,14 +115,6 @@ contract VIGILVault is Ownable, ReentrancyGuard {
         address indexed tokenOut,
         uint256 amountIn,
         uint256 amountOut
-    );
-
-    event BridgeInitiated(
-        bytes32 indexed transferId,
-        address token,
-        uint256 amount,
-        uint32 destinationChainId,
-        bytes32 recipient
     );
 
     event GasReservoirFunded(uint256 amount, uint256 newTotal);
@@ -159,6 +164,10 @@ contract VIGILVault is Ownable, ReentrancyGuard {
         AGENT_WALLET = _agentWallet;
         MNT_TOKEN = _mntToken;
         epochStartBlock = block.number;
+        deployedAt = block.timestamp;
+
+        if (_allowedTokens.length > 0) mETH_TOKEN = _allowedTokens[0];
+        if (_allowedTokens.length > 1) USDY_TOKEN = _allowedTokens[1];
 
         for (uint256 i = 0; i < _allowedTokens.length; i++) {
             _whitelistToken(_allowedTokens[i], _priceFeeds[i]);
@@ -168,6 +177,24 @@ contract VIGILVault is Ownable, ReentrancyGuard {
     // ─────────────────────────────────────────────────────────────────────────
     // ADMIN FUNCTIONS (owner only — not callable by agent)
     // ─────────────────────────────────────────────────────────────────────────
+
+    function setFluxionAdapter(address _a) external onlyOwner {
+        fluxionAdapter = _a;
+    }
+
+    function setSuperPortalAdapter(address _a) external onlyOwner {
+        superPortalAdapter = _a;
+    }
+
+    function setLedgerContract(address _l) external onlyOwner {
+        ledgerContract = _l;
+        vigilLedger = _l;
+        emit LedgerSet(_l);
+    }
+
+    function setXStocksEnabled(bool _enabled) external onlyOwner {
+        xStocksEnabled = _enabled;
+    }
 
     /// @notice Set the ERC-8004 agent token ID after identity mint
     function setAgentId(uint256 _agentId) external onlyOwner {
@@ -179,6 +206,7 @@ contract VIGILVault is Ownable, ReentrancyGuard {
     function setLedger(address _ledger) external onlyOwner {
         require(_ledger != address(0), "VIGIL: zero ledger");
         vigilLedger = _ledger;
+        ledgerContract = _ledger;
         emit LedgerSet(_ledger);
     }
 
@@ -197,40 +225,22 @@ contract VIGILVault is Ownable, ReentrancyGuard {
     // GUARDRAIL VALIDATION — Pure view, no state changes
     // ─────────────────────────────────────────────────────────────────────────
 
-    /// @notice Validates a proposed decision against all hardcoded guardrails.
-    ///         Called off-chain before submitting execution, and re-checked on-chain inside executeRebalance.
-    /// @param fromToken The token being sold
-    /// @param toToken The token being bought
-    /// @param amount The USD-denominated amount of the trade (6 decimals)
-    /// @param slippageBps The maximum slippage in basis points accepted for this trade
-    /// @return valid Whether the decision passes all guardrails
-    /// @return reason Human-readable rejection reason if !valid
     function validateDecision(
         address fromToken,
         address toToken,
         uint256 amount,
         uint256 slippageBps
     ) public view returns (bool valid, string memory reason) {
-        // 1. Token whitelist check
         if (!allowedTokens[fromToken]) return (false, "FROM_TOKEN_NOT_WHITELISTED");
         if (!allowedTokens[toToken]) return (false, "TO_TOKEN_NOT_WHITELISTED");
-
-        // 2. Self-trade check
         if (fromToken == toToken) return (false, "SAME_TOKEN");
-
-        // 3. Zero amount check
         if (amount == 0) return (false, "ZERO_AMOUNT");
-
-        // 4. Slippage cap check
         if (slippageBps > MAX_SLIPPAGE_BPS) return (false, "SLIPPAGE_EXCEEDED");
-
-        // 5. Single transaction size cap
         if (amount > MAX_SINGLE_TX_USD) return (false, "AMOUNT_EXCEEDS_CAP");
 
-        // 6. Epoch allocation cap (reset epoch if needed)
         uint256 effectiveEpochUsed = epochAllocationUsed;
         if (block.number >= epochStartBlock + EPOCH_BLOCKS) {
-            effectiveEpochUsed = 0; // epoch has reset
+            effectiveEpochUsed = 0;
         }
 
         uint256 totalValue = getTotalValue();
@@ -241,7 +251,6 @@ contract VIGILVault is Ownable, ReentrancyGuard {
             }
         }
 
-        // 7. Gas reservoir minimum
         if (gasReservoir < GAS_RESERVOIR_MIN) return (false, "GAS_RESERVOIR_LOW");
 
         return (true, "");
@@ -251,13 +260,6 @@ contract VIGILVault is Ownable, ReentrancyGuard {
     // EXECUTION (agent only, after guardrail pass)
     // ─────────────────────────────────────────────────────────────────────────
 
-    /// @notice Records an executed rebalancing decision on-chain.
-    ///         Re-validates all guardrails atomically — the agent cannot bypass them.
-    /// @param fromToken Token sold
-    /// @param toToken Token bought  
-    /// @param amount USD-denominated trade size (6 decimals)
-    /// @param slippageBps Actual slippage achieved
-    /// @param executionData Encoded Fluxion or DEX execution calldata (for hash)
     function executeRebalance(
         address fromToken,
         address toToken,
@@ -265,7 +267,54 @@ contract VIGILVault is Ownable, ReentrancyGuard {
         uint256 slippageBps,
         bytes calldata executionData
     ) external onlyAgent nonReentrant {
-        // Re-validate guardrails atomically (agent cannot skip this)
+        _executeRebalanceInternal(
+            fromToken,
+            toToken,
+            amount,
+            slippageBps,
+            bytes32(0),
+            bytes32(0),
+            0,
+            "",
+            executionData
+        );
+    }
+
+    function executeRebalance(
+        address fromToken,
+        address toToken,
+        uint256 amount,
+        uint256 slippageBps,
+        bytes32 zkProofHash,
+        bytes32 signalBundleHash,
+        uint256 confidence,
+        string calldata reasoning,
+        bytes calldata executionData
+    ) external onlyAgent nonReentrant {
+        _executeRebalanceInternal(
+            fromToken,
+            toToken,
+            amount,
+            slippageBps,
+            zkProofHash,
+            signalBundleHash,
+            confidence,
+            reasoning,
+            executionData
+        );
+    }
+
+    function _executeRebalanceInternal(
+        address fromToken,
+        address toToken,
+        uint256 amount,
+        uint256 slippageBps,
+        bytes32 zkProofHash,
+        bytes32 signalBundleHash,
+        uint256 confidence,
+        string memory reasoning,
+        bytes memory executionData
+    ) internal {
         (bool valid, string memory reason) = validateDecision(fromToken, toToken, amount, slippageBps);
 
         if (!valid) {
@@ -273,68 +322,112 @@ contract VIGILVault is Ownable, ReentrancyGuard {
             revert(reason);
         }
 
-        // Reset epoch if needed
         if (block.number >= epochStartBlock + EPOCH_BLOCKS) {
             epochAllocationUsed = 0;
             epochStartBlock = block.number;
             emit EpochReset(block.number);
         }
 
-        // Update epoch tracking
-        epochAllocationUsed += amount;
+        // Check if trade involves xStocks
+        bool isFromXStock = (fromToken != MNT_TOKEN && fromToken != mETH_TOKEN && fromToken != USDY_TOKEN);
+        bool isToXStock = (toToken != MNT_TOKEN && toToken != mETH_TOKEN && toToken != USDY_TOKEN);
+        if ((isFromXStock || isToXStock) && !xStocksEnabled) {
+            revert("xStocks trading not available on this network");
+        }
 
-        // Update allocation tracking
-        // Note: actual token movement happens via Fluxion/DEX — this tracks the intent
+        epochAllocationUsed += amount;
         totalDecisions++;
 
         bytes32 executionHash = keccak256(executionData);
+
+        if ((fromToken == mETH_TOKEN && toToken == USDY_TOKEN) || (fromToken == USDY_TOKEN && toToken == mETH_TOKEN)) {
+            (address router, uint256 tokenAmountIn, uint256 minAmountOut) = abi.decode(executionData, (address, uint256, uint256));
+            
+            (bool success, bytes memory result) = fluxionAdapter.delegatecall(
+                abi.encodeWithSignature(
+                    "executeSwap(address,address,address,uint256,uint256)",
+                    router,
+                    fromToken,
+                    toToken,
+                    tokenAmountIn,
+                    minAmountOut
+                )
+            );
+            require(success, "Swap delegatecall failed");
+            uint256 actualAmountOut = abi.decode(result, (uint256));
+            emit SwapExecuted(fromToken, toToken, tokenAmountIn, actualAmountOut);
+        }
+
         emit DecisionExecuted(fromToken, toToken, amount, slippageBps, executionHash);
+
+        if (vigilLedger != address(0)) {
+            VIGILLedger.LedgerEntry memory entry = VIGILLedger.LedgerEntry({
+                timestamp: block.timestamp,
+                agentId: erc8004AgentId,
+                entryType: 1, // TYPE_EXECUTED
+                fromToken: fromToken,
+                toToken: toToken,
+                amount: amount,
+                confidence: confidence,
+                slippageBps: slippageBps,
+                txHash: bytes32(0),
+                zkProofHash: zkProofHash,
+                signalBundleHash: signalBundleHash,
+                skipReason: "",
+                reasoning: reasoning
+            });
+            VIGILLedger(vigilLedger).log(entry);
+        }
     }
 
-    /// @notice Records a skipped decision (confidence below threshold, etc.)
-    /// @param reason The skip reason string (e.g., "CONFIDENCE_TOO_LOW", "GAS_LOW")
-    /// @param confidence The confidence score × 10000 (e.g., 4500 = 45.00%)
     function recordSkip(string calldata reason, uint256 confidence) external onlyAgent {
+        _recordSkipInternal(reason, confidence, bytes32(0), bytes32(0), "");
+    }
+
+    function recordSkip(
+        string calldata reason,
+        uint256 confidence,
+        bytes32 zkProofHash,
+        bytes32 signalBundleHash,
+        string calldata reasoning
+    ) external onlyAgent {
+        _recordSkipInternal(reason, confidence, zkProofHash, signalBundleHash, reasoning);
+    }
+
+    function _recordSkipInternal(
+        string memory reason,
+        uint256 confidence,
+        bytes32 zkProofHash,
+        bytes32 signalBundleHash,
+        string memory reasoning
+    ) internal {
         totalSkipped++;
         emit DecisionSkipped(reason, confidence);
-    }
 
-    /// @notice Mock Fluxion RFQ swap execution inside the vault for testnet.
-    function swapWithQuote(
-        bytes32 quoteId,
-        uint256 minAmountOut,
-        uint256 deadline,
-        bytes calldata signature
-    ) external returns (uint256 amountOut) {
-        emit SwapExecuted(msg.sender, msg.sender, 0, minAmountOut);
-        return minAmountOut;
-    }
-
-    /// @notice Mock Mantle Super Portal bridge routing inside the vault for testnet.
-    function bridge(
-        address token,
-        uint256 amount,
-        uint32 destinationChainId,
-        bytes32 recipient,
-        uint256 deadline
-    ) external payable returns (bytes32 transferId) {
-        transferId = keccak256(abi.encodePacked(token, amount, destinationChainId, recipient, deadline, block.timestamp));
-        emit BridgeInitiated(transferId, token, amount, destinationChainId, recipient);
-        return transferId;
-    }
-
-    /// @notice Mock status check for cross-chain transfer.
-    function getTransferStatus(bytes32 transferId) external view returns (uint8 status) {
-        return 1; // 1 = COMPLETED
+        if (vigilLedger != address(0)) {
+            VIGILLedger.LedgerEntry memory entry = VIGILLedger.LedgerEntry({
+                timestamp: block.timestamp,
+                agentId: erc8004AgentId,
+                entryType: 0, // TYPE_SKIPPED
+                fromToken: address(0),
+                toToken: address(0),
+                amount: 0,
+                confidence: confidence,
+                slippageBps: 0,
+                txHash: bytes32(0),
+                zkProofHash: zkProofHash,
+                signalBundleHash: signalBundleHash,
+                skipReason: reason,
+                reasoning: reasoning
+            });
+            VIGILLedger(vigilLedger).log(entry);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // ALLOCATION TRACKING
     // ─────────────────────────────────────────────────────────────────────────
 
-    /// @notice Update the recorded allocation for a token (called by agent after rebalance)
-    /// @param token The token address
-    /// @param newBps New allocation in basis points (10000 = 100%)
     function updateAllocation(address token, uint256 newBps) external onlyAgent {
         require(allowedTokens[token], "VIGIL: token not whitelisted");
         allocation[token] = newBps;
@@ -345,9 +438,6 @@ contract VIGILVault is Ownable, ReentrancyGuard {
     // GAS RESERVOIR — Self-sustaining gas economy
     // ─────────────────────────────────────────────────────────────────────────
 
-    /// @notice Fund the gas reservoir from yield claims.
-    ///         Called automatically by the yield claiming logic every 6 hours.
-    /// @param mntAmount Amount of MNT to add to the reservoir
     function fundGasReservoir(uint256 mntAmount) external nonReentrant {
         require(mntAmount > 0, "VIGIL: zero amount");
         bool success = IERC20(MNT_TOKEN).transferFrom(msg.sender, address(this), mntAmount);
@@ -356,9 +446,6 @@ contract VIGILVault is Ownable, ReentrancyGuard {
         emit GasReservoirFunded(mntAmount, gasReservoir);
     }
 
-    /// @notice Consume MNT from the gas reservoir for transaction fees.
-    ///         Only callable by the agent.
-    /// @param mntAmount Amount of MNT to consume
     function consumeGas(uint256 mntAmount) external onlyAgent nonReentrant {
         if (gasReservoir < mntAmount) revert GasReservoirTooLow(gasReservoir, mntAmount);
         gasReservoir -= mntAmount;
@@ -371,8 +458,6 @@ contract VIGILVault is Ownable, ReentrancyGuard {
     // PORTFOLIO VALUATION — Chainlink-powered
     // ─────────────────────────────────────────────────────────────────────────
 
-    /// @notice Compute the total portfolio value in USD (6 decimals) using Chainlink feeds.
-    ///         Iterates all whitelisted tokens and sums balance × price.
     function getTotalValue() public view returns (uint256 totalUSD) {
         for (uint256 i = 0; i < whitelistedTokenList.length; i++) {
             address token = whitelistedTokenList[i];
@@ -385,8 +470,6 @@ contract VIGILVault is Ownable, ReentrancyGuard {
             int256 price = _getChainlinkPrice(feed);
             if (price <= 0) continue;
 
-            // Chainlink prices have 8 decimals, token balances have 18
-            // Result in 6 decimals (USD)
             totalUSD += (balance * uint256(price)) / 1e20;
         }
     }
@@ -405,10 +488,7 @@ contract VIGILVault is Ownable, ReentrancyGuard {
         emit TokenWhitelisted(token, priceFeed);
     }
 
-    /// @notice Read the latest price from a Chainlink aggregator
     function _getChainlinkPrice(address feed) internal view returns (int256 price) {
-        // AggregatorV3Interface.latestRoundData()
-        // Selector: 0xfeaf968c
         (bool success, bytes memory data) = feed.staticcall(
             abi.encodeWithSelector(0xfeaf968c)
         );
@@ -420,27 +500,24 @@ contract VIGILVault is Ownable, ReentrancyGuard {
     // VIEW HELPERS
     // ─────────────────────────────────────────────────────────────────────────
 
-    /// @notice Returns current epoch allocation remaining capacity (USD, 6 decimals)
     function epochAllocationRemaining() external view returns (uint256) {
         uint256 totalValue = getTotalValue();
         if (totalValue == 0) return 0;
         uint256 epochCap = (totalValue * MAX_EPOCH_ALLOCATION) / 10000;
 
         if (block.number >= epochStartBlock + EPOCH_BLOCKS) {
-            return epochCap; // epoch reset
+            return epochCap;
         }
 
         return epochCap > epochAllocationUsed ? epochCap - epochAllocationUsed : 0;
     }
 
-    /// @notice Returns blocks until next epoch reset
     function blocksUntilEpochReset() external view returns (uint256) {
         uint256 epochEnd = epochStartBlock + EPOCH_BLOCKS;
         if (block.number >= epochEnd) return 0;
         return epochEnd - block.number;
     }
 
-    /// @notice Returns all whitelisted token addresses
     function getWhitelistedTokens() external view returns (address[] memory) {
         return whitelistedTokenList;
     }
