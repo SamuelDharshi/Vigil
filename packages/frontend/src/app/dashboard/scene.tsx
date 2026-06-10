@@ -244,7 +244,7 @@ function ThreeCanvas({
 
         // Project to screen for HTML label
         const labelEl = labelRefs.current[i];
-        if (labelEl) {
+        if (labelEl && container) {
           const vec = mesh.position.clone().project(camera);
           const hw = container.clientWidth / 2;
           const hh = container.clientHeight / 2;

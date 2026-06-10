@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const PHRASES = [
-  "Collecting Chainlink price feeds...",
+  "Fetching live Pyth price feeds from Hermes...",
   "Analyzing Nansen smart money wallet flows...",
   "Running Elfa AI sentiment analysis...",
   "Scoring mETH, USDY, NVDAx, AAPLx, TSLAx...",
@@ -214,7 +214,7 @@ export default function Landing() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 44 }}>
           {[
             { n: "01", title: "No Prompts Needed", desc: "VIGIL runs a cron job every 30 minutes. It decides entirely on its own — you don't type anything.", color: "#00d097" },
-            { n: "02", title: "Scoring Engine", desc: "Chainlink prices + Nansen smart money + Elfa sentiment → weighted confidence score. Needs 30% to trade.", color: "#8b5cf6" },
+            { n: "02", title: "Scoring Engine", desc: "Pyth prices + Nansen smart money + Elfa sentiment → weighted confidence score. Needs 30% to trade.", color: "#8b5cf6" },
             { n: "03", title: "ZK-Proven On-Chain", desc: "Every decision — trade or skip — gets a Groth16 ZK proof and ERC-8004 reputation log on Mantle.", color: "#3b82f6" },
           ].map(f => (
             <div key={f.n} className="feature-card" style={{

@@ -7,18 +7,13 @@ import { NextRequest, NextResponse } from "next/server";
  * VIGILVault.sol on Mantle Sepolia. Also reads total AUM via Chainlink feeds.
  */
 
-const MANTLE_RPC  = process.env.MANTLE_RPC_URL || "https://rpc.sepolia.mantle.xyz";
-const VAULT_ADDR  = process.env.VIGIL_VAULT_ADDRESS || "";
+import deployments from "../../../../../config/deployments.sepolia.json";
 
-// Token addresses from env — same as agent config
-const TOKEN_ADDRESSES: Record<string, string> = {
-  mETH:  process.env.METH_ADDRESS  || "",
-  USDY:  process.env.USDY_ADDRESS  || "",
-  NVDAx: process.env.NVDAX_ADDRESS || "",
-  AAPLx: process.env.AAPLX_ADDRESS || "",
-  TSLAx: process.env.TSLAX_ADDRESS || "",
-  MNT:   process.env.MNT_ADDRESS || "0x78c1b0c915c4faa5fffa6cabf0219da63d7f4cb8",
-};
+const MANTLE_RPC  = deployments.rpc;
+const VAULT_ADDR  = deployments.contracts.VIGILVault;
+
+// Token addresses from config
+const TOKEN_ADDRESSES: Record<string, string> = deployments.tokens;
 
 // Colors for the allocation bars in the War Room UI
 const TOKEN_COLORS: Record<string, string> = {

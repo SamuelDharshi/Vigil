@@ -9,10 +9,12 @@ import { NextResponse } from "next/server";
  * - ERC-8004 Reputation Registry
  */
 
-const MANTLE_RPC   = process.env.MANTLE_RPC_URL || "https://rpc.sepolia.mantle.xyz";
-const VAULT_ADDR   = process.env.VIGIL_VAULT_ADDRESS || "";
-const LEDGER_ADDR  = process.env.VIGIL_LEDGER_ADDRESS || "";
-const REP_REGISTRY = process.env.ERC8004_REPUTATION_REGISTRY || "";
+import deployments from "../../../../../config/deployments.sepolia.json";
+
+const MANTLE_RPC   = deployments.rpc;
+const VAULT_ADDR   = deployments.contracts.VIGILVault;
+const LEDGER_ADDR  = deployments.contracts.VIGILLedger;
+const REP_REGISTRY = deployments.erc8004.ReputationRegistry;
 
 const VAULT_ABI = [
   "function totalDecisions() view returns (uint256)",

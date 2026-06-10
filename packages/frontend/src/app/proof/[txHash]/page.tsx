@@ -249,14 +249,25 @@ export default function ProofPage() {
             </a>
           )}
           {proof.zkProofHash && (
-            <span className="proof-link-btn" style={{ cursor: "default", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis" }}>
-              ZK: {proof.zkProofHash.slice(0, 22)}...
+            <span
+              className="proof-link-btn"
+              style={{ cursor: "pointer", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis" }}
+              title="Click to copy ZK proof hash"
+              onClick={() => { navigator.clipboard.writeText(proof.zkProofHash!); }}
+            >
+              ZK: {proof.zkProofHash.slice(0, 22)}... ⎘
             </span>
           )}
-          {proof.signalBundleHash && (
-            <span className="proof-link-btn" style={{ cursor: "default" }}>
-              Signals IPFS: {proof.signalBundleHash.slice(0, 20)}...
-            </span>
+          {proof.signalBundleHash && proof.signalBundleHash !== "0x0000000000000000000000000000000000000000000000000000000000000000" && (
+            <a
+              href={`https://ipfs.io/ipfs/search?q=${proof.signalBundleHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="proof-link-btn"
+              title="Search IPFS for this signal bundle by its keccak256 hash"
+            >
+              Signal Bundle IPFS ↗
+            </a>
           )}
         </div>
 

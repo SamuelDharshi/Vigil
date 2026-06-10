@@ -179,6 +179,7 @@ export default function WarRoomPage() {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(1800);
   const [activeStage, setActiveStage] = useState(0);
+  const [livePrices, setLivePrices] = useState<Record<string,{price:number;change:number}>>({});
 
   // Canvas pan/zoom
   const [pan, setPan] = useState({ x: 60, y: 40 });
@@ -261,7 +262,12 @@ export default function WarRoomPage() {
 
   // ── Countdown ────────────────────────────────────────────────────────────────
   useEffect(() => {
-    const t = setInterval(() => setCountdown(c => c > 0 ? c - 1 : 1800), 1000);
+    const updateCountdown = () => {
+      const secondsLeft = 1800 - (Math.floor(Date.now() / 1000) % 1800);
+      setCountdown(secondsLeft);
+    };
+    updateCountdown();
+    const t = setInterval(updateCountdown, 1000);
     return () => clearInterval(t);
   }, []);
 
@@ -276,6 +282,37 @@ export default function WarRoomPage() {
   }, []);
 
   useEffect(() => { fetchLiveData(); const i = setInterval(fetchLiveData, 60_000); return () => clearInterval(i); }, [fetchLiveData]);
+
+  // ── Live Pyth prices (30s refresh) ────────────────────────────────────────────
+  useEffect(() => {
+    const fetchPrices = async () => {
+      try {
+        const FEEDS = [
+          { sym: "ETH",  id: "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace" },
+          { sym: "NVDA", id: "0x67aed5a24fdad045475e7195c98a98aea119c763f272d4523f5bac93a4f33c2b" },
+          { sym: "AAPL", id: "0x49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688" },
+          { sym: "TSLA", id: "0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1" },
+          { sym: "MNT",  id: "0x4e3037c822d852d79af3ac80e35eb420ee3b37bf4a1efa8b4c4c4c47e8c9fdab" },
+        ];
+        const ids = FEEDS.map(f => `ids[]=${f.id}`).join("&");
+        const r = await fetch(`https://hermes.pyth.network/v2/updates/price/latest?${ids}&parsed=true`, { signal: AbortSignal.timeout(8000) });
+        if (!r.ok) return;
+        const data = await r.json();
+        const prices: Record<string,{price:number;change:number}> = {};
+        for (const p of (data.parsed || [])) {
+          const feed = FEEDS.find(f => f.id.toLowerCase() === "0x" + p.id.toLowerCase());
+          if (!feed) continue;
+          const price = parseFloat(p.price.price) * Math.pow(10, p.price.expo);
+          const emaPrice = parseFloat(p.ema_price.price) * Math.pow(10, p.ema_price.expo);
+          prices[feed.sym] = { price, change: ((price - emaPrice) / emaPrice) * 100 };
+        }
+        setLivePrices(prices);
+      } catch { /* silently ignore — prices are supplemental */ }
+    };
+    fetchPrices();
+    const t = setInterval(fetchPrices, 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   // ── WebSocket ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -415,6 +452,27 @@ export default function WarRoomPage() {
         <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 12px", borderRadius: 6, border: "0.5px solid rgba(139,92,246,0.4)", background: "rgba(139,92,246,0.08)", color: "#a78bfa", fontFamily: "monospace", fontSize: 10, textDecoration: "none" }}>✦ 3D Dashboard</Link>
       </div>
 
+      {/* Indexer Offline Banner */}
+      {!wsConnected && (
+        <div style={{
+          background: "rgba(239, 68, 68, 0.15)",
+          borderBottom: "1.5px solid rgba(239, 68, 68, 0.3)",
+          color: "#f87171",
+          fontFamily: "monospace",
+          fontSize: "11px",
+          textAlign: "center",
+          padding: "8px 16px",
+          zIndex: 100,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "8px",
+          animation: "fadeIn 0.25s ease",
+        }}>
+          <span>⚠ WARNING: VIGIL Indexer Daemon is offline. War Room real-time updates are suspended. Run <code style={{background:"rgba(0,0,0,0.3)", padding:"2px 6px", borderRadius:4, border:"0.5px solid rgba(239, 68, 68, 0.4)"}}>pm2 start ecosystem.config.js</code> or check system status.</span>
+        </div>
+      )}
+
       {/* ── Canvas + Panel ── */}
       <div style={{ flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
 
@@ -531,7 +589,7 @@ export default function WarRoomPage() {
                 ))}
               </div>
 
-              <div style={{ padding: "12px 14px" }}>
+              <div style={{ padding: "12px 14px", borderBottom: "0.5px solid rgba(255,255,255,0.06)" }}>
                 <div style={{ fontFamily: "monospace", fontSize: 8.5, color: "rgba(255,255,255,0.22)", letterSpacing: "0.08em", marginBottom: 8 }}>DECISION HISTORY</div>
                 {entries.length === 0 ? (
                   <p style={{ fontFamily: "monospace", fontSize: 9.5, color: "rgba(255,255,255,0.18)", textAlign: "center", padding: "16px 0" }}>No decisions yet</p>
@@ -546,16 +604,17 @@ export default function WarRoomPage() {
                   </div>
                 ))}
               </div>
+
+              {/* 14-Day Activity Heatmap */}
+              <ActivityHeatmap entries={entries} />
             </div>
           )}
         </div>
       </div>
 
       {/* ── Status Bar ── */}
-      <div style={{ height: 26, background: "rgba(9,9,11,0.98)", borderTop: "0.5px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", padding: "0 16px", gap: 20, flexShrink: 0 }}>
-        {["NYSE: CLOSED", "NASDAQ: CLOSED", "LSE: CLOSED"].map(m => (
-          <span key={m} style={{ fontFamily: "monospace", fontSize: 8.5, color: "rgba(255,255,255,0.18)" }}>{m}</span>
-        ))}
+      <div style={{ height: 28, background: "rgba(9,9,11,0.98)", borderTop: "0.5px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", padding: "0 16px", gap: 16, flexShrink: 0 }}>
+        <MarketStatusBar entries={entries} />
         <div style={{ flex: 1 }} />
         <span style={{ fontFamily: "monospace", fontSize: 8.5, color: "rgba(255,255,255,0.2)" }}>
           Stage: {["Signal Intake", "Scoring Engine", "Guardrail", "Decision", "Output"][activeStage]}
@@ -569,3 +628,164 @@ export default function WarRoomPage() {
 function hexToRgb(hex: string): string {
   return `${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)}`;
 }
+
+// ─── Live Market Status Clock ─────────────────────────────────────────────────
+// NYSE/NASDAQ: Mon–Fri 09:30–16:00 ET (UTC-4 during EDT, UTC-5 during EST)
+// We use a fixed UTC-4 offset (EDT) which covers the majority of the year.
+function useMarketClock() {
+  const [now, setNow] = React.useState(() => new Date());
+  React.useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Convert UTC to New York time (EDT = UTC-4, EST = UTC-5)
+  // Simple heuristic: EDT runs roughly Mar–Nov. We check both.
+  const toNYC = (d: Date) => {
+    // Determine if DST is active (second Sunday March → first Sunday November)
+    const yr = d.getUTCFullYear();
+    const dstStart = new Date(Date.UTC(yr, 2, 8 - (new Date(Date.UTC(yr, 2, 1)).getUTCDay() + 6) % 7 + (new Date(Date.UTC(yr, 2, 1)).getUTCDay() === 0 ? 7 : 0), 7));
+    const dstEnd   = new Date(Date.UTC(yr, 10, 1 + (7 - new Date(Date.UTC(yr, 10, 1)).getUTCDay()) % 7, 6));
+    const offset = d >= dstStart && d < dstEnd ? 4 : 5; // hours behind UTC
+    return new Date(d.getTime() - offset * 3_600_000);
+  };
+
+  const nyc = toNYC(now);
+  const day = nyc.getUTCDay(); // 0=Sun 6=Sat
+  const h   = nyc.getUTCHours();
+  const m   = nyc.getUTCMinutes();
+  const s   = nyc.getUTCSeconds();
+  const minutesInDay = h * 60 + m;
+  const isWeekday = day >= 1 && day <= 5;
+  const OPEN  = 9 * 60 + 30;  // 09:30
+  const CLOSE = 16 * 60;      // 16:00
+  const isOpen = isWeekday && minutesInDay >= OPEN && minutesInDay < CLOSE;
+
+  // Seconds until next open (for countdown when closed)
+  let secondsToOpen = 0;
+  if (!isOpen) {
+    const todayOpenSec = OPEN * 60;
+    const nowSec = minutesInDay * 60 + s;
+    if (isWeekday && nowSec < todayOpenSec) {
+      secondsToOpen = todayOpenSec - nowSec;
+    } else {
+      // Days until next Monday (or next day if before 09:30)
+      let daysAhead = 0;
+      if (!isWeekday) {
+        daysAhead = day === 0 ? 1 : 2; // Sun→Mon=1, Sat→Mon=2
+      } else {
+        daysAhead = 1; // after close on weekday → next day open
+        if (day === 5) daysAhead = 3; // Friday after close → Monday
+      }
+      secondsToOpen = daysAhead * 86400 + todayOpenSec - nowSec;
+      if (secondsToOpen < 0) secondsToOpen += 86400;
+    }
+  }
+
+  const fmt = (sec: number) => {
+    const hh = Math.floor(sec / 3600);
+    const mm = Math.floor((sec % 3600) / 60);
+    const ss = sec % 60;
+    return hh > 0
+      ? `${hh}h ${String(mm).padStart(2,"0")}m`
+      : `${String(mm).padStart(2,"0")}:${String(ss).padStart(2,"0")}`;
+  };
+
+  return { isOpen, secondsToOpen, fmt, nyc };
+}
+
+function MarketStatusBar({ entries }: { entries: LedgerEntry[] }) {
+  const { isOpen, secondsToOpen, fmt } = useMarketClock();
+  const executed = entries.filter(e => e.entry_type === 1).length;
+
+  const marketColor = isOpen ? "#00d097" : "rgba(255,255,255,0.22)";
+  const marketLabel = isOpen ? "OPEN" : "CLOSED";
+  const countdown   = !isOpen && secondsToOpen > 0 ? ` (${fmt(secondsToOpen)})` : "";
+
+  return (
+    <>
+      {["NYSE", "NASDAQ"].map(mkt => (
+        <span key={mkt} style={{ fontFamily: "monospace", fontSize: 8.5, color: marketColor, display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ color: "rgba(255,255,255,0.18)" }}>{mkt}:</span>
+          <span style={{ color: marketColor, fontWeight: isOpen ? 700 : 400 }}>{marketLabel}{mkt === "NYSE" ? countdown : ""}</span>
+        </span>
+      ))}
+      {!isOpen && executed > 0 && (
+        <span style={{ fontFamily: "monospace", fontSize: 8.5, color: "#00d097", opacity: 0.7 }}>
+          · VIGIL executed {executed} decision{executed !== 1 ? "s" : ""} while markets were closed
+        </span>
+      )}
+    </>
+  );
+}
+
+function ActivityHeatmap({ entries }: { entries: LedgerEntry[] }) {
+  const days = Array.from({ length: 14 }).map((_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (13 - i));
+    return d;
+  });
+
+  const dailyCounts = days.map(day => {
+    const dateStr = day.toDateString();
+    const dayEntries = entries.filter(e => {
+      const entryDate = new Date(e.block_timestamp * 1000);
+      return entryDate.toDateString() === dateStr;
+    });
+    return {
+      date: day,
+      executes: dayEntries.filter(e => e.entry_type !== 0).length,
+      skips: dayEntries.filter(e => e.entry_type === 0).length,
+      total: dayEntries.length,
+    };
+  });
+
+  return (
+    <div style={{ padding: "12px 14px" }}>
+      <div style={{ fontFamily: "monospace", fontSize: 8.5, color: "rgba(255,255,255,0.22)", letterSpacing: "0.08em", marginBottom: 8 }}>14-DAY ACTIVITY HEATMAP</div>
+      <div style={{ display: "flex", gap: 4, justifyContent: "space-between", alignItems: "center", background: "rgba(255,255,255,0.02)", padding: 8, borderRadius: 6, border: "0.5px solid rgba(255,255,255,0.04)" }}>
+        {dailyCounts.map((dayData, idx) => {
+          let bg = "rgba(255,255,255,0.04)";
+          let border = "0.5px solid rgba(255,255,255,0.06)";
+          if (dayData.total > 0) {
+            if (dayData.executes > 0 && dayData.skips === 0) {
+              bg = "#00d09733";
+              border = "0.5px solid #00d09766";
+            } else if (dayData.executes > 0 && dayData.skips > 0) {
+              bg = "#f59e0b33";
+              border = "0.5px solid #f59e0b66";
+            } else {
+              bg = "#ef444433";
+              border = "0.5px solid #ef444466";
+            }
+          }
+          const formattedDate = dayData.date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+          const titleText = `${formattedDate}: ${dayData.executes} Executes, ${dayData.skips} Skips`;
+
+          return (
+            <div
+              key={idx}
+              title={titleText}
+              style={{
+                width: 14,
+                height: 14,
+                borderRadius: 3,
+                background: bg,
+                border: border,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            />
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontFamily: "monospace", fontSize: 7.5, color: "rgba(255,255,255,0.2)" }}>
+        <span>{dailyCounts[0].date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+        <span>Today</span>
+      </div>
+    </div>
+  );
+}
+
