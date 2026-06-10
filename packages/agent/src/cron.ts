@@ -330,7 +330,15 @@ export async function runDecisionCycle(): Promise<void> {
   }
 
   // STEP 9: VIGILVault log
-  await logToVault(executionOk ? decision : null, skipReason, reasoning, bundle.bundleId, bundleCid);
+  await logToVault(
+    executionOk ? decision : null,
+    skipReason,
+    reasoning,
+    bundle.bundleId,
+    bundleCid,
+    proof?.proofHash,
+    decision?.confidence || 0
+  );
 
   const elapsed = ((Date.now() - cycleStart) / 1000).toFixed(1);
   lastStatus = isSkip ? `skip:${skipReason}` : `executed:${decision?.fromAsset}→${decision?.toAsset}`;
@@ -349,23 +357,84 @@ export async function runDecisionCycle(): Promise<void> {
 // VAULT LOGGING
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function logToVault(decision: Decision | null, skipReason: SkipReason | null, reasoning: string, bundleId: string, bundleCid: string): Promise<void> {
+async function logToVault(
+  decision: Decision | null,
+  skipReason: SkipReason | null,
+  reasoning: string,
+  bundleId: string,
+  bundleCid: string,
+  zkProofHash?: string,
+  confidence = 0
+): Promise<void> {
   if (!VIGIL_VAULT_ADDRESS) {
     console.warn("[Cron] VIGIL_VAULT_ADDRESS not set — vault log skipped");
     return;
   }
+
+  // Convert IPFS CID to bytes32 — take keccak256 of the UTF-8 string
+  const signalBundleHash = bundleCid && bundleCid !== "ipfs-unavailable"
+    ? ethers.keccak256(ethers.toUtf8Bytes(bundleCid))
+    : ethers.ZeroHash;
+
+  // Convert proof hash string to bytes32 (already a 0x hex string from keccak256)
+  const proofHashBytes32: string =
+    zkProofHash && zkProofHash.startsWith("0x") && zkProofHash.length === 66
+      ? zkProofHash
+      : ethers.ZeroHash;
+
+  // Scale confidence to uint256 (multiply by 10000: 0.79 → 7900)
+  const confidenceScaled = BigInt(Math.round(confidence * 10_000));
+
   try {
     if (skipReason || !decision) {
-      const vault = new ethers.Contract(VIGIL_VAULT_ADDRESS, ["function recordSkip(string calldata reason, uint256 confidence) external"], agentWallet);
+      const vault = new ethers.Contract(
+        VIGIL_VAULT_ADDRESS,
+        [
+          "function recordSkip(string calldata reason, uint256 confidence, bytes32 zkProofHash, bytes32 signalBundleHash, string calldata reasoning) external",
+        ],
+        agentWallet
+      );
       const nonce = await agentWallet.getNonce("pending");
-      const tx = await vault.recordSkip(skipReason || "EXECUTION_ERROR", 0, { gasLimit: 80_000, nonce });
+      const tx = await vault.recordSkip(
+        skipReason || "EXECUTION_ERROR",
+        confidenceScaled,
+        proofHashBytes32,
+        signalBundleHash,
+        reasoning || "",
+        { gasLimit: 300_000, nonce }
+      );
       console.log(`[Cron] ✅ Vault skip logged: ${tx.hash}`);
+      console.log(`[Cron]    zkProofHash: ${proofHashBytes32}`);
+      console.log(`[Cron]    signalBundleHash: ${signalBundleHash}`);
     } else {
-      const vault = new ethers.Contract(VIGIL_VAULT_ADDRESS, ["function executeRebalance(address fromToken, address toToken, uint256 amount, uint256 slippageBps, bytes calldata executionData) external"], agentWallet);
-      const execData = ethers.AbiCoder.defaultAbiCoder().encode(["string", "string"], [decision.txHash || "0x", bundleCid]);
+      const vault = new ethers.Contract(
+        VIGIL_VAULT_ADDRESS,
+        [
+          "function executeRebalance(address fromToken, address toToken, uint256 amount, uint256 slippageBps, bytes32 zkProofHash, bytes32 signalBundleHash, uint256 confidence, string calldata reasoning, bytes calldata executionData) external",
+        ],
+        agentWallet
+      );
+      // For generic trades, encode tx hash + bundleCid as execution proof data
+      const execData = ethers.AbiCoder.defaultAbiCoder().encode(
+        ["string", "string"],
+        [decision.txHash || "0x", bundleCid]
+      );
       const nonce = await agentWallet.getNonce("pending");
-      const tx = await vault.executeRebalance(decision.fromToken, decision.toToken, BigInt(Math.round(decision.amount)), BigInt(decision.slippageBps || 0), execData, { gasLimit: 250_000, nonce });
+      const tx = await vault.executeRebalance(
+        decision.fromToken,
+        decision.toToken,
+        BigInt(Math.round(decision.amount)),
+        BigInt(decision.slippageBps || 0),
+        proofHashBytes32,
+        signalBundleHash,
+        confidenceScaled,
+        reasoning || "",
+        execData,
+        { gasLimit: 400_000, nonce }
+      );
       console.log(`[Cron] ✅ Vault execute logged: ${tx.hash}`);
+      console.log(`[Cron]    zkProofHash: ${proofHashBytes32}`);
+      console.log(`[Cron]    signalBundleHash: ${signalBundleHash}`);
     }
   } catch (err: any) {
     console.error("[Cron] Vault log failed:", err.message);
@@ -376,12 +445,49 @@ async function logToVault(decision: Decision | null, skipReason: SkipReason | nu
 // MAIN
 // ─────────────────────────────────────────────────────────────────────────────
 
+async function verifyIndexerHealth(retries = 3, delayMs = 3000): Promise<void> {
+  const axios = (await import("axios")).default;
+  const indexerPort = process.env.WS_PORT || "8080";
+  const indexerHealthUrl = `http://localhost:${indexerPort}/health`;
+  console.log(`[Cron] Verifying indexer health at ${indexerHealthUrl}...`);
+
+  for (let i = 1; i <= retries; i++) {
+    try {
+      const response = await axios.get(indexerHealthUrl, { timeout: 4000 });
+      if (response.status === 200 && response.data?.status === "OK") {
+        console.log(`[Cron] ✅ Indexer health check passed (Attempt ${i}/${retries})`);
+        return;
+      }
+      console.warn(`[Cron] ⚠ Indexer health check returned status: ${response.status} / ${response.data?.status} (Attempt ${i}/${retries})`);
+    } catch (err: any) {
+      console.warn(`[Cron] ⚠ Indexer health check failed: ${err.message} (Attempt ${i}/${retries})`);
+    }
+    if (i < retries) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+
+  console.warn(`[Cron] ⚠ Indexer health verification failed after ${retries} attempts. Continuing, but indexer updates might not broadcast!`);
+}
+
 async function main() {
-  // Start health server FIRST — Render needs to see the port immediately
-  startHealthServer();
+  const args = process.argv.slice(2);
+  const runOnce = args.includes("--once");
+
+  if (!runOnce) {
+    // Start health server FIRST — Render needs to see the port immediately
+    startHealthServer();
+    // Verify indexer health on startup
+    await verifyIndexerHealth();
+  }
 
   await spawnAgent();
   await runDecisionCycle();
+
+  if (runOnce) {
+    console.log("[Cron] ✅ Single decision cycle run completed. Exiting.");
+    process.exit(0);
+  }
 
   console.log(`\n[Cron] Starting 30-minute decision loop (${CRON_SCHEDULE})`);
   cronTask = cron.schedule(CRON_SCHEDULE, async () => {

@@ -23,9 +23,11 @@ dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
  * Super Portal:           https://portal.mantle.xyz / bridge.sepolia.mantle.xyz
  */
 
+import { CHAIN_ID, RPC_URL, CONTRACTS, ERC8004, TOKENS } from "@vigil/config";
+
 // ─── Network ──────────────────────────────────────────────────────────────────
-export const MANTLE_RPC_URL  = process.env.MANTLE_RPC_URL  || "https://rpc.sepolia.mantle.xyz";
-export const MANTLE_CHAIN_ID = 5003; // Mantle Sepolia
+export const MANTLE_RPC_URL  = RPC_URL;
+export const MANTLE_CHAIN_ID = CHAIN_ID; // Mantle Sepolia
 export const MANTLE_EXPLORER = "https://sepolia.mantlescan.xyz";
 
 export const provider = new ethers.JsonRpcProvider(MANTLE_RPC_URL, undefined, { batchMaxCount: 1 });
@@ -35,71 +37,46 @@ export const agentWallet = new ethers.Wallet(
   provider
 );
 
-// ─── VIGIL Deployed Contracts (fill after Phase 1 deploy) ─────────────────────
-export const VIGIL_VAULT_ADDRESS   = process.env.VIGIL_VAULT_ADDRESS   || "";
-export const VIGIL_LEDGER_ADDRESS  = process.env.VIGIL_LEDGER_ADDRESS  || "";
+// ─── VIGIL Deployed Contracts ─────────────────────
+export const VIGIL_VAULT_ADDRESS   = CONTRACTS.VIGILVault;
+export const VIGIL_LEDGER_ADDRESS  = CONTRACTS.VIGILLedger;
 export const VERIFIER_ADDRESS      = process.env.VERIFIER_ADDRESS      || "";
 
-// ─── ERC-8004 Registry Addresses (Mantle Sepolia) ─────────────────────────────
-// Deployed via CREATE2 — identical address on every supported chain.
-// Source: https://github.com/erc-8004/erc-8004-contracts
-export const ERC8004_IDENTITY_REGISTRY   = process.env.ERC8004_IDENTITY_REGISTRY   || "0x8004A818BFB912233c491871b3d84c89A494BD9e";
-export const ERC8004_REPUTATION_REGISTRY = process.env.ERC8004_REPUTATION_REGISTRY || "0x8004B663056A597Dffe9eCcC1965A193B7388713";
-export const ERC8004_VALIDATION_REGISTRY = process.env.ERC8004_VALIDATION_REGISTRY || "0x8004Cb1BF31DAf7788923b405b754f57acEB4272";
+// ─── ERC-8004 Registry Addresses ─────────────────────────────
+export const ERC8004_IDENTITY_REGISTRY   = ERC8004.IdentityRegistry;
+export const ERC8004_REPUTATION_REGISTRY = ERC8004.ReputationRegistry;
+export const ERC8004_VALIDATION_REGISTRY = ERC8004.ValidationRegistry;
 
 // ─── Native Token ─────────────────────────────────────────────────────────────
-// Mantle Sepolia native MNT token wrapper (ERC-20) for EVM calls
-// Source: https://docs.mantle.xyz/network/introduction/token-contract-address
-export const MNT_TOKEN_ADDRESS = process.env.MNT_ADDRESS || "0x78c1b0c915c4FAA5FffA6CAbf0219DA63d7f4cb8";
+export const MNT_TOKEN_ADDRESS = TOKENS.MNT;
 
-// ─── Protocol Addresses (fill from official docs before first run) ─────────────
-export const SUPER_PORTAL_ADDRESS    = process.env.SUPER_PORTAL_ADDRESS    || "";
-export const FLUXION_XCHANGE_ADDRESS = process.env.FLUXION_XCHANGE_ADDRESS || "";
+// ─── Protocol Addresses ─────────────────────────────
+export const SUPER_PORTAL_ADDRESS    = CONTRACTS.SuperPortalAdapter;
+export const FLUXION_XCHANGE_ADDRESS = CONTRACTS.FluxionAdapter;
 export const FLUXION_RFQ_ENDPOINT    = process.env.FLUXION_RFQ_ENDPOINT    || "https://api.fluxion.network/v1/rfq";
 
-// ─── Token Addresses (Mantle Sepolia) ─────────────────────────────────────────
-// mETH: https://docs.methprotocol.xyz/technical-docs/contracts
-// USDY: verify from https://docs.ondo.finance/usdy/supported-chains
-// xStocks: verify from https://docs.fluxion.network/xstocks after BackedFi activation
+// ─── Token Addresses ─────────────────────────────────────────
 export const TOKEN_ADDRESSES: Record<string, string> = {
-  MNT:   MNT_TOKEN_ADDRESS,
-  mETH:  process.env.METH_ADDRESS   || "0xcDA86A272531e8640cD7F1a92c01839911B90bb0", // Mantle Sepolia
-  USDY:  process.env.USDY_ADDRESS   || "",  // Fill from Ondo docs for Mantle Sepolia
-  NVDAx: process.env.NVDAX_ADDRESS  || "",  // Fill from Fluxion xStocks docs
-  AAPLx: process.env.AAPLX_ADDRESS  || "",  // Fill from Fluxion xStocks docs
-  TSLAx: process.env.TSLAX_ADDRESS  || "",  // Fill from Fluxion xStocks docs
+  MNT:   TOKENS.MNT,
+  mETH:  TOKENS.mETH,
+  USDY:  TOKENS.USDY,
+  NVDAx: TOKENS.NVDAx,
+  AAPLx: TOKENS.AAPLx,
+  TSLAx: TOKENS.TSLAx,
 };
 
 // ─── Pyth Oracle Configuration ─────────────────────────────────────────────────
-// Chainlink does NOT have price feeds on Mantle Sepolia.
-// VIGIL uses Pyth Network which IS deployed on Mantle Sepolia.
-//
-// Pyth contract on Mantle Sepolia:
-// Source: https://docs.pyth.network/price-feeds/contract-addresses/evm
 export const PYTH_CONTRACT_ADDRESS = "0xA2aa501b19aff244D90cc15a4Cf739D2725B5729";
 export const PYTH_HERMES_URL       = "https://hermes.pyth.network";
 
-// Pyth Price Feed IDs — these are universal across all chains.
-// Source: https://pyth.network/developers/price-feed-ids
 export const PYTH_PRICE_IDS: Record<string, string> = {
-  // Equities (xStocks = BackedFi tokenized stocks, priced via equity feeds)
   "NVDA/USD":  "0xb1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593",
   "AAPL/USD":  "0x49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688",
   "TSLA/USD":  "0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",
-  // Crypto — mETH tracks ETH price + staking premium
   "ETH/USD":   "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
   "MNT/USD":   "0x4e3037c822d852d79af3ac80e35eb420ee3b870dca49f9344a38ef4773fb0585",
-  // USDY tracks USD closely (Ondo stablecoin)
   "USDC/USD":  "0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a",
 };
-
-// ─── mETH Protocol APR ───────────────────────────────────────────────────────
-// The mETH staking contract on Mantle Sepolia testnet does not expose stakingRate().
-// We use the real mainnet APR as a baseline signal (currently ~3.8% annualized).
-// Source: https://docs.methprotocol.xyz/technical-docs/contracts
-export const METH_BASELINE_APR = parseFloat(process.env.METH_BASELINE_APR || "3.8");
-// USDY real yield from Ondo (4.09% annualized as of June 2026)
-export const USDY_BASELINE_YIELD = parseFloat(process.env.USDY_BASELINE_YIELD || "4.09");
 
 // ─── Solana Configuration (for Byreal CLMM) ───────────────────────────────────
 export const BYREAL_SOLANA_WALLET = process.env.BYREAL_SOLANA_WALLET || "";
@@ -157,9 +134,8 @@ export const PYTH_ABI = [
 // The staking contract on Mantle Sepolia testnet does not implement stakingRate().
 
 export const ERC8004_IDENTITY_ABI = [
-  "function mintIdentity(string calldata agentCardCid) external returns (uint256 tokenId)",
-  "function setAgentCard(uint256 tokenId, string calldata cid) external",
-  "function getAgentCard(uint256 tokenId) external view returns (string memory cid)",
+  "function register(string calldata tokenURI) external returns (uint256 agentId)",
+  "function tokenURI(uint256 tokenId) external view returns (string memory)",
   "function ownerOf(uint256 tokenId) external view returns (address)",
 ];
 

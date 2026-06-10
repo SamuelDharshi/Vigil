@@ -17,16 +17,11 @@ import { AgentCard, SerializedProof } from "../types";
  * VIGIL ERC-8004 Identity Module
  *
  * Three registries used:
- * 1. Identity Registry  — Mint agent NFT at spawn
+ * 1. Identity Registry  — Mint agent NFT at spawn via register(string)
  * 2. Reputation Registry — Submit performance feedback after every decision
  * 3. Validation Registry — Submit Groth16 ZK proof after every execution
- *
- * On Mantle Sepolia testnet, the CREATE2 ERC-8004 registries are not deployed.
- * VIGIL uses a synthetic agent ID (derived from wallet address) as fallback,
- * persisted to .agent-state.json so it survives restarts.
  */
 
-// ─── Persistent Agent State ───────────────────────────────────────────────────
 const STATE_FILE = path.join(__dirname, "../../.agent-state.json");
 
 function loadState(): { agentId?: string; agentCid?: string } {
@@ -43,14 +38,29 @@ export function saveAgentId(id: string, cid?: string): void {
     const state = loadState();
     state.agentId = id;
     if (cid) state.agentCid = cid;
-    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
-    console.log(`[ERC-8004] Agent state saved: ID=${id}`);
+    const tempFile = STATE_FILE + ".tmp";
+    fs.writeFileSync(tempFile, JSON.stringify(state, null, 2));
+    fs.renameSync(tempFile, STATE_FILE);
+    console.log(`[ERC-8004] Agent state saved atomically: ID=${id}`);
   } catch (e: any) {
     console.warn(`[ERC-8004] Could not save agent state: ${e.message}`);
   }
 }
 
-// ─── In-memory cache ──────────────────────────────────────────────────────────
+function updateAgentTokenIdInConfig(tokenId: string) {
+  try {
+    const configPath = path.resolve(__dirname, "../../../config/deployments.sepolia.json");
+    if (fs.existsSync(configPath)) {
+      const data = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      data.agentTokenId = tokenId;
+      fs.writeFileSync(configPath, JSON.stringify(data, null, 2));
+      console.log(`[ERC-8004] deployments.sepolia.json updated with agentTokenId: ${tokenId}`);
+    }
+  } catch (e: any) {
+    console.warn(`[ERC-8004] Could not update deployments.sepolia.json: ${e.message}`);
+  }
+}
+
 let _cachedAgentId: string | null = null;
 
 /**
@@ -59,7 +69,7 @@ let _cachedAgentId: string | null = null;
  */
 export async function mintAgentIdentity(agentCardCid: string): Promise<string> {
   if (!ERC8004_IDENTITY_REGISTRY) {
-    throw new Error("ERC8004_IDENTITY_REGISTRY not configured in .env");
+    throw new Error("ERC8004_IDENTITY_REGISTRY not configured");
   }
 
   console.log("[ERC-8004] Minting agent identity...");
@@ -72,46 +82,57 @@ export async function mintAgentIdentity(agentCardCid: string): Promise<string> {
     agentWallet
   );
 
-  const tx = await identityRegistry.mintIdentity(agentCardCid, {
-    gasLimit: 300_000,
-  });
+  try {
+    const tx = await identityRegistry.register(agentCardCid, {
+      gasLimit: 300_000,
+    });
 
-  console.log(`[ERC-8004] Identity mint TX submitted: ${tx.hash}`);
-  const receipt = await tx.wait();
+    console.log(`[ERC-8004] Identity register TX submitted: ${tx.hash}`);
+    const receipt = await tx.wait();
 
-  if (!receipt) throw new Error("Identity mint transaction failed");
+    if (!receipt) throw new Error("Identity register transaction failed");
 
-  const transferLog = receipt.logs[0];
-  const agentId = transferLog.topics[3]
-    ? BigInt(transferLog.topics[3]).toString()
-    : receipt.logs[0].topics[1]
-    ? BigInt(receipt.logs[0].topics[1]).toString()
-    : "0";
+    let agentId = "0";
+    const transferTopic = ethers.id("Transfer(address,address,uint256)");
+    for (const log of receipt.logs) {
+      if (log.topics[0] === transferTopic && log.topics[3]) {
+        agentId = BigInt(log.topics[3]).toString();
+        break;
+      }
+    }
 
-  _cachedAgentId = agentId;
-  saveAgentId(agentId, agentCardCid);
+    if (agentId === "0") {
+      const registeredTopic = ethers.id("Registered(uint256,string,address)");
+      for (const log of receipt.logs) {
+        if (log.topics[0] === registeredTopic && log.topics[1]) {
+          agentId = BigInt(log.topics[1]).toString();
+          break;
+        }
+      }
+    }
 
-  console.log(`[ERC-8004] ✅ Agent identity minted! Token ID: ${agentId}`);
-  console.log(`[ERC-8004] View on explorer: https://erc8004.quicknode.com`);
+    if (agentId === "0") {
+      throw new Error("Failed to extract agent ID from transaction logs");
+    }
 
-  return agentId;
+    _cachedAgentId = agentId;
+    updateAgentTokenIdInConfig(agentId);
+    saveAgentId(agentId, agentCardCid);
+
+    console.log(`[ERC-8004] ✅ Agent identity minted! Token ID: ${agentId}`);
+    return agentId;
+  } catch (err: any) {
+    console.error(`[ERC-8004] Mint identity failed: ${err.message}`);
+    throw new Error(`IdentityRegistryError: ${err.message}`);
+  }
 }
 
 /**
- * Register the agent card CID on-chain after minting.
+ * Register the agent card CID on-chain after minting (standard metadata fallback).
  */
 export async function setAgentCard(tokenId: string, cid: string): Promise<void> {
-  if (!ERC8004_IDENTITY_REGISTRY) return;
-
-  const identityRegistry = new ethers.Contract(
-    ERC8004_IDENTITY_REGISTRY,
-    ERC8004_IDENTITY_ABI,
-    agentWallet
-  );
-
-  const tx = await identityRegistry.setAgentCard(tokenId, cid, { gasLimit: 200_000 });
-  await tx.wait();
-  console.log(`[ERC-8004] Agent card CID registered on-chain: ${cid}`);
+  // Metadata is set directly at registration in register()
+  console.log(`[ERC-8004] Agent card CID already set at register: ${cid}`);
 }
 
 /**
@@ -145,13 +166,13 @@ export async function submitReputationFeedback(
       scaledScore,
       1n,
       metadataCid,
-      { gasLimit: 150_000 }
+      { gasLimit: 300_000 }
     );
 
     await tx.wait();
     console.log(`[ERC-8004] Reputation feedback submitted: score ${score}, task ${taskId}`);
-  } catch (err) {
-    console.error("[ERC-8004] Failed to submit reputation feedback:", err);
+  } catch (err: any) {
+    console.error("[ERC-8004] Failed to submit reputation feedback:", err.message);
   }
 }
 
@@ -189,8 +210,8 @@ export async function submitValidationProof(
 
     await tx.wait();
     console.log(`[ERC-8004] ZK proof submitted to Validation Registry: ${proof.proofHash}`);
-  } catch (err) {
-    console.error("[ERC-8004] Failed to submit validation proof:", err);
+  } catch (err: any) {
+    console.error("[ERC-8004] Failed to submit validation proof:", err.message);
   }
 }
 
@@ -222,20 +243,10 @@ export async function getReputationScore(
 
 /**
  * Get or load the agent ID.
- *
- * Resolution order:
- * 1. In-memory cache (fastest)
- * 2. VIGILVault.erc8004AgentId() on-chain read
- * 3. Local .agent-state.json file (survives restarts, stores synthetic ID)
- *
- * The synthetic ID is generated by spawnAgent() when the ERC-8004 registry
- * isn't deployed on the current testnet.
  */
 export async function getAgentId(): Promise<string | null> {
-  // 1. Memory cache
   if (_cachedAgentId) return _cachedAgentId;
 
-  // 2. On-chain from VIGILVault
   if (VIGIL_VAULT_ADDRESS) {
     try {
       const vault = new ethers.Contract(
@@ -251,12 +262,16 @@ export async function getAgentId(): Promise<string | null> {
     } catch { /* not yet set */ }
   }
 
-  // 3. Local state file (synthetic ID from testnet spawn)
-  const state = loadState();
-  if (state.agentId) {
-    _cachedAgentId = state.agentId;
-    return _cachedAgentId;
-  }
+  try {
+    const configPath = path.resolve(__dirname, "../../../config/deployments.sepolia.json");
+    if (fs.existsSync(configPath)) {
+      const data = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      if (data.agentTokenId && data.agentTokenId !== "") {
+        _cachedAgentId = data.agentTokenId.toString();
+        return _cachedAgentId;
+      }
+    }
+  } catch { /* ignore */ }
 
   return null;
 }
@@ -265,6 +280,12 @@ export async function getAgentId(): Promise<string | null> {
  * Build the ERC-8004 compliant Agent Card JSON structure.
  */
 export function buildAgentCard(agentWalletAddress: string): AgentCard {
+  // Use the real deployed URL — RENDER_EXTERNAL_URL is auto-injected by Render
+  const baseUrl =
+    process.env.RENDER_EXTERNAL_URL?.replace(/\/$/, "") ||
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+    "https://vigil-agent.onrender.com";
+
   return {
     name: "VIGIL",
     description:
@@ -273,7 +294,7 @@ export function buildAgentCard(agentWalletAddress: string): AgentCard {
     capabilities: [
       {
         id: "rwa-rebalance",
-        description: "Rebalance across mETH, USDY, and xStocks using Chainlink, Nansen, and Elfa AI signals",
+        description: "Rebalance across mETH, USDY, and xStocks using Pyth, Nansen, and Elfa AI signals",
       },
       {
         id: "clmm-manage",
@@ -289,12 +310,25 @@ export function buildAgentCard(agentWalletAddress: string): AgentCard {
       },
     ],
     endpoints: [
-      { protocol: "https", url: "https://vigil.app/api/agent" },
-      { protocol: "mcp", url: "https://vigil.app/mcp" },
-      { protocol: "ws", url: "wss://vigil.app/ws" },
+      { protocol: "https", url: `${baseUrl}/api/agent` },
+      { protocol: "mcp",   url: `${baseUrl}/mcp` },
+      { protocol: "ws",    url: `${baseUrl.replace(/^https/, "wss")}/ws` },
     ],
     paymentAddress: agentWalletAddress,
     supportedProtocols: ["A2A", "MCP", "x402"],
     deployedAt: new Date().toISOString(),
   };
+}
+
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  if (args.includes("--spawn")) {
+    const { spawnAgent } = require("../cron");
+    spawnAgent().then(() => {
+      process.exit(0);
+    }).catch((err: any) => {
+      console.error("[ERC-8004] Spawn failed:", err);
+      process.exit(1);
+    });
+  }
 }

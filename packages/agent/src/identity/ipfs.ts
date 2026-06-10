@@ -1,38 +1,4 @@
-import { WEB3_STORAGE_KEY } from "../config";
 import { AgentCard } from "../types";
-
-/**
- * VIGIL IPFS Module — Live Pinning via Storacha (formerly web3.storage)
- *
- * web3.storage rebranded to storacha.network — the client package is now
- * @storacha/client. All functionality is identical.
- *
- * The CID returned by every function is registered on-chain in the
- * ERC-8004 Identity Registry as the Agent Card pointer.
- *
- * API: https://storacha.network/docs
- * Key: https://console.storacha.network → Create Key
- */
-
-async function getStorachaClient() {
-  if (!WEB3_STORAGE_KEY) {
-    throw new Error(
-      "[IPFS] WEB3_STORAGE_KEY is not set in .env\n" +
-      "Get a key at: https://console.storacha.network\n" +
-      "Set it in .env as WEB3_STORAGE_KEY=..."
-    );
-  }
-
-  // Try @storacha/client first (new package name)
-  try {
-    const { create } = await import("@storacha/client");
-    return await create();
-  } catch {
-    // Fallback to @web3-storage/w3up-client (old package name — same code)
-    const { create } = await import("@web3-storage/w3up-client");
-    return await create();
-  }
-}
 
 async function pinBlobToPinata(blob: Blob, name: string): Promise<string> {
   const pinataJwt = process.env.PINATA_JWT;
@@ -70,25 +36,13 @@ async function pinBlobToPinata(blob: Blob, name: string): Promise<string> {
 
 async function pinBlob(blob: Blob, name: string = "file.json"): Promise<string> {
   const pinataJwt = process.env.PINATA_JWT;
-  if (pinataJwt) {
-    console.log(`[IPFS] Uploading real file '${name}' to IPFS via Pinata...`);
-    const cid = await pinBlobToPinata(blob, name);
-    console.log(`[IPFS] ✅ Real upload successful! CID: ${cid}`);
-    return cid;
+  if (!pinataJwt || pinataJwt === "") {
+    throw new Error("IPFSUploadError: PINATA_JWT is not configured in .env. Real IPFS upload required.");
   }
-
-  if (!WEB3_STORAGE_KEY) {
-    console.warn(
-      "[IPFS] ⚠ WEB3_STORAGE_KEY is not set in .env. Generating mock IPFS CID for local prototyping..."
-    );
-    const crypto = await import("crypto");
-    const hash = crypto.createHash("sha256").update(await blob.text()).digest("hex");
-    return `bafybeihmockcid${hash.slice(0, 32)}`;
-  }
-
-  const client = await getStorachaClient();
-  const cid = await (client as any).uploadFile(blob);
-  return cid.toString();
+  console.log(`[IPFS] Uploading real file '${name}' to IPFS via Pinata...`);
+  const cid = await pinBlobToPinata(blob, name);
+  console.log(`[IPFS] ✅ Real upload successful! CID: ${cid}`);
+  return cid;
 }
 
 const bigintReplacer = (key: string, value: any) =>

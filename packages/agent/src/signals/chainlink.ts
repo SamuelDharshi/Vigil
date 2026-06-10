@@ -6,8 +6,6 @@ import {
   PYTH_HERMES_URL,
   PYTH_PRICE_IDS,
   PYTH_ABI,
-  METH_BASELINE_APR,
-  USDY_BASELINE_YIELD,
   TOKEN_ADDRESSES,
   VIGIL_VAULT_ADDRESS,
 } from "../config";
@@ -122,10 +120,13 @@ export async function fetchPythBundle(): Promise<PythBundle> {
       prices[symbol] = usdPrice;
       publishTimes[symbol] = parsed.price.publish_time;
 
-      // Staleness check: Pyth prices should be < 5 minutes old
+      // Staleness check — xStocks (NVDA/AAPL/TSLA) are always stale when US markets
+      // are closed (nights, weekends). This is expected — engine switches to YIELD-ONLY
+      // mode automatically. Only warn for core DeFi feeds that should always be fresh.
       const ageSeconds = Math.floor(Date.now() / 1000) - parsed.price.publish_time;
-      if (ageSeconds > 300) {
-        console.warn(`[Pyth] ⚠ ${symbol} price is ${ageSeconds}s stale — confidence reduced`);
+      const isXStock = symbol === "NVDA/USD" || symbol === "AAPL/USD" || symbol === "TSLA/USD";
+      if (ageSeconds > 300 && !isXStock) {
+        console.log(`[Pyth] ${symbol} price is ${ageSeconds}s old — check Hermes connectivity`);
       }
     }
 
@@ -142,14 +143,38 @@ export async function fetchPythBundle(): Promise<PythBundle> {
     // Return empty bundle — engine will reduce confidence on missing prices
   }
 
-  // Fetch mETH APR: use real mETH protocol mainnet APR as the baseline signal.
-  // The mETH staking contract on Mantle Sepolia does not expose stakingRate().
-  // METH_BASELINE_APR is set in .env (default 3.8% — real Mantle mETH protocol rate).
-  const mEthApr = METH_BASELINE_APR;
-  // USDY yield: use Ondo's real published yield as the signal baseline.
-  // USDY_BASELINE_YIELD is set in .env (default 4.09% annualized).
-  const usdyYield = USDY_BASELINE_YIELD;
-  console.log(`[Oracle] mETH APR baseline: ${mEthApr.toFixed(2)}% | USDY yield baseline: ${usdyYield.toFixed(2)}%`);
+  let mEthApr = 0;
+  let usdyYield = 0;
+
+  try {
+    console.log("[Oracle] Fetching live mETH APR from DeFiLlama...");
+    const methResponse = await axios.get("https://yields.llama.fi/chart/b9f2f00a-ba96-4589-a171-dde979a23d87", { timeout: 8000 });
+    const methData = methResponse.data.data;
+    if (methData && methData.length > 0) {
+      mEthApr = methData[methData.length - 1].apy;
+      console.log(`[Oracle] Live mETH APR: ${mEthApr.toFixed(2)}%`);
+    } else {
+      throw new Error("Empty data returned for mETH pool");
+    }
+  } catch (err: any) {
+    console.error(`[Oracle] Failed to fetch live mETH APR: ${err.message}`);
+    throw new Error(`OracleFetchError: mETH APY fetch failed: ${err.message}`);
+  }
+
+  try {
+    console.log("[Oracle] Fetching live USDY yield from DeFiLlama...");
+    const usdyResponse = await axios.get("https://yields.llama.fi/chart/b5d7a190-38d2-4fdd-8c14-1fd00c11bce1", { timeout: 8000 });
+    const usdyData = usdyResponse.data.data;
+    if (usdyData && usdyData.length > 0) {
+      usdyYield = usdyData[usdyData.length - 1].apy;
+      console.log(`[Oracle] Live USDY yield: ${usdyYield.toFixed(2)}%`);
+    } else {
+      throw new Error("Empty data returned for USDY pool");
+    }
+  } catch (err: any) {
+    console.error(`[Oracle] Failed to fetch live USDY yield: ${err.message}`);
+    throw new Error(`OracleFetchError: USDY APY fetch failed: ${err.message}`);
+  }
 
   return {
     // mETH price in USD (from Pyth ETH/USD feed — mETH tracks ETH closely)
@@ -234,5 +259,18 @@ export async function fetchVaultAllocation(): Promise<Record<string, number>> {
   } catch (err) {
     console.error("[Vault] Failed to read allocation:", err);
     return {};
+  }
+}
+
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  if (args.includes("--test")) {
+    fetchPythBundle().then((bundle) => {
+      console.log(JSON.stringify(bundle, null, 2));
+      process.exit(0);
+    }).catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
   }
 }

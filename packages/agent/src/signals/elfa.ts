@@ -179,3 +179,16 @@ export async function fetchElfaBundle(windowHours = 4): Promise<ElfaBundle> {
     fetchedAt: Date.now(),
   };
 }
+
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  if (args.includes("--test")) {
+    fetchElfaBundle().then((bundle) => {
+      console.log(JSON.stringify(bundle, null, 2));
+      process.exit(0);
+    }).catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+  }
+}

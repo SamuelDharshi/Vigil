@@ -45,7 +45,6 @@ import {
   ELFA_API_KEY,
   WEB3_STORAGE_KEY,
   TOKEN_ADDRESSES,
-  METH_BASELINE_APR,
   DATABASE_URL,
   CIRCUIT_WASM_PATH,
   CIRCUIT_ZKEY_PATH,
@@ -101,8 +100,7 @@ async function runDiagnostics() {
       pillar1.passed = false;
     }
 
-    pillar1.notes.push(`✓ mETH APR baseline: ${METH_BASELINE_APR.toFixed(2)}% (real mETH mainnet protocol rate)`);
-    pillar1.notes.push(`✓ mETH APR used in signal: ${pythBundle.mEthApr.toFixed(2)}%`);
+    pillar1.notes.push(`✓ mETH APR: ${pythBundle.mEthApr.toFixed(2)}% (live DeFiLlama rate)`);
 
     console.log("[Pillar 1] Testing Nansen API wallet flow fetch...");
     if (NANSEN_API_KEY) {
@@ -416,10 +414,13 @@ async function runDiagnostics() {
       pillar5.warnings.push(`WebSocket indexer offline on port 8080. Start indexer using: cd packages/indexer && npm run dev`);
     }
 
+    const pinataJwt = process.env.PINATA_JWT;
     if (WEB3_STORAGE_KEY) {
-      pillar5.notes.push("✓ IPFS storage gateway configured (Storacha client)");
+      pillar5.notes.push("✓ IPFS storage gateway configured (Storacha/web3.storage)");
+    } else if (pinataJwt) {
+      pillar5.notes.push("✓ IPFS storage gateway configured (Pinata)");
     } else {
-      pillar5.warnings.push("WEB3_STORAGE_KEY not configured — IPFS uploads will default to mock return values or throw");
+      pillar5.warnings.push("WEB3_STORAGE_KEY and PINATA_JWT not configured — IPFS uploads will default to mock return values or throw");
     }
 
   } catch (err: any) {

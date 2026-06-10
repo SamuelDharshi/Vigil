@@ -256,3 +256,30 @@ export function buildProofInput(
     maxEpochChange: "1500", // 15.00% × 100 — mirrors VIGILVault.MAX_EPOCH_ALLOCATION
   };
 }
+
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  if (args.includes("--test")) {
+    const input = buildProofInput(100, 50, 40, { mETH: 4000, USDY: 4000, xStocks: 2000 }, { mETH: 3800, USDY: 4200, xStocks: 2000 });
+    const { CIRCUIT_WASM_PATH, CIRCUIT_ZKEY_PATH } = require("../config");
+    const snarkjs = require("snarkjs");
+    snarkjs.groth16.fullProve(
+      {
+        mEthSignalWeight:   input.mEthSignalWeight,
+        usdySignalWeight:   input.usdySignalWeight,
+        xstockSignalWeight: input.xstockSignalWeight,
+        prevAllocation:     input.prevAllocation,
+        newAllocation:      input.newAllocation,
+        maxEpochChange:     input.maxEpochChange,
+      },
+      CIRCUIT_WASM_PATH,
+      CIRCUIT_ZKEY_PATH
+    ).then(({ proof }: any) => {
+      console.log(JSON.stringify(proof, null, 2));
+      process.exit(0);
+    }).catch((err: any) => {
+      console.error(err);
+      process.exit(1);
+    });
+  }
+}

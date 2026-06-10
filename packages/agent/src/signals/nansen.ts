@@ -2,6 +2,8 @@ import axios from "axios";
 import { provider, NANSEN_API_KEY, TOKEN_ADDRESSES } from "../config";
 import { NansenBundle, SmartMoneyFlow } from "../types";
 import { ethers } from "ethers";
+import * as fs from "fs";
+import * as path from "path";
 
 /**
  * VIGIL Signal Layer — Smart Money / On-Chain Flow Signal
@@ -161,13 +163,13 @@ async function fetchNansenNetflows(): Promise<SmartMoneyFlow[]> {
   } catch (err: any) {
     const status = err.response?.status;
     if (status === 401 || status === 403) {
-      console.warn("[Nansen] ⚠ API key unauthorized — falling back to on-chain whale tracker");
+      console.log("[Nansen] API key not active on this plan — using on-chain whale tracker");
     } else if (status === 402) {
-      console.warn("[Nansen] ⚠ API quota exceeded — falling back to on-chain whale tracker");
+      console.log("[Nansen] API quota reached — using on-chain whale tracker");
     } else if (status === 429) {
-      console.warn("[Nansen] ⚠ Rate limited — falling back to on-chain whale tracker");
+      console.log("[Nansen] Rate limited — using on-chain whale tracker");
     } else {
-      console.warn(`[Nansen] ⚠ Request failed (${err.message}) — falling back to on-chain whale tracker`);
+      console.log(`[Nansen] API unavailable (${err.message}) — using on-chain whale tracker`);
     }
 
     // ── Real on-chain fallback: Mantle Sepolia activity tracker ──────────────
@@ -254,6 +256,40 @@ async function fetchNansenNetflows(): Promise<SmartMoneyFlow[]> {
   }
 }
 
+const PYTH_PRICE_IDS: Record<string, string> = {
+  "mETH":  "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace", // ETH/USD
+  "USDY":  "0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a", // USDC/USD (tracks USDY)
+  "NVDAx": "0xb1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593", // NVDA/USD
+  "AAPLx": "0x49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688", // AAPL/USD
+  "TSLAx": "0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1", // TSLA/USD
+};
+
+async function fetchTokenPrices(): Promise<Record<string, number>> {
+  const prices: Record<string, number> = { USDY: 1.0 }; // Default USDY to $1.0
+  try {
+    const ids = Object.values(PYTH_PRICE_IDS).map(id => id.slice(2)).join("&ids[]=");
+    const url = `https://hermes.pyth.network/v2/updates/price/latest?ids[]=${ids}&encoding=hex&parsed=true`;
+    const response = await axios.get(url, { timeout: 8000 });
+    const data = response.data?.parsed || [];
+    for (const parsed of data) {
+      const feedId = "0x" + parsed.id;
+      const symbol = Object.keys(PYTH_PRICE_IDS).find(k => PYTH_PRICE_IDS[k].toLowerCase() === feedId.toLowerCase());
+      if (symbol) {
+        const p = parseFloat(parsed.price.price) * Math.pow(10, parsed.price.expo);
+        prices[symbol] = p;
+      }
+    }
+  } catch (err: any) {
+    console.log(`[Nansen] Hermes price fetch timed out (${err.message}) — using fallback prices`);
+    // Provide hardcoded fallback prices in case Hermes is down
+    prices.mETH = 3000.0;
+    prices.NVDAx = 220.0;
+    prices.AAPLx = 180.0;
+    prices.TSLAx = 170.0;
+  }
+  return prices;
+}
+
 /**
  * On-chain fallback: read real ERC-20 Transfer events from Mantle Sepolia.
  * Used when Nansen returns no flows for a specific asset.
@@ -261,13 +297,13 @@ async function fetchNansenNetflows(): Promise<SmartMoneyFlow[]> {
 async function fetchOnChainTransfers(
   tokenAddress: string,
   tokenSymbol: string,
+  price: number,
   windowHours = 6
 ): Promise<SmartMoneyFlow[]> {
   if (!tokenAddress) return [];
 
   try {
     const currentBlock = await provider.getBlockNumber();
-    // Mantle Sepolia: ~2s block time → 6h = ~10800 blocks
     const blocksPerHour = 1800;
     const maxRPCBlocks = 9990;
     const fromBlock = currentBlock - Math.min(blocksPerHour * windowHours, maxRPCBlocks);
@@ -286,31 +322,66 @@ async function fetchOnChainTransfers(
     if (logs.length === 0) return [];
 
     const ZERO = ethers.ZeroAddress;
-    let inCount = 0;
+    
+    // Get DEX address from config dynamically
+    let dexAddressLower = "";
+    try {
+      const configPath = path.resolve(__dirname, "../../../config/deployments.sepolia.json");
+      if (fs.existsSync(configPath)) {
+        const data = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+        if (data.contracts?.VIGILMockDEX) {
+          dexAddressLower = data.contracts.VIGILMockDEX.toLowerCase();
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    let totalInUsd = 0;
+    let totalOutUsd = 0;
+    let whaleTxCount = 0;
 
     for (const log of logs) {
       try {
         const parsed = erc20Interface.parseLog({ topics: log.topics as string[], data: log.data });
         if (!parsed) continue;
-        const from = parsed.args[0] as string;
-        const to   = parsed.args[1] as string;
+        const from = (parsed.args[0] as string).toLowerCase();
+        const to   = (parsed.args[1] as string).toLowerCase();
+        const value = parsed.args[2] as bigint;
+
         if (from === ZERO || to === ZERO) continue;
-        inCount++;
+
+        const amount = Number(ethers.formatEther(value));
+        const usdValue = amount * price;
+
+        if (usdValue >= 50000) {
+          whaleTxCount++;
+          // If from is DEX, it's user buying -> IN
+          if (from === dexAddressLower) {
+            totalInUsd += usdValue;
+          } else if (to === dexAddressLower) {
+            // If to is DEX, it's user selling -> OUT
+            totalOutUsd += usdValue;
+          } else {
+            // General transfer, treat as user buying/accumulating -> IN
+            totalInUsd += usdValue;
+          }
+        }
       } catch { /* skip malformed logs */ }
     }
 
-    const approxUsdValue = logs.length * 100;
-    console.log(`[OnChain] ${tokenSymbol}: ${logs.length} transfers in ${windowHours}h (approx $${approxUsdValue.toFixed(0)})`);
+    const netflowUsd = Math.abs(totalInUsd - totalOutUsd);
+    console.log(`[OnChain] ${tokenSymbol}: ${logs.length} transfers in ${windowHours}h. Whales (>50k): ${whaleTxCount}. Netflow: $${(netflowUsd / 1000).toFixed(1)}k`);
 
-    if (approxUsdValue < 500) return [];
+    if (netflowUsd === 0) return [];
 
     return [{
       token:        tokenSymbol,
       tokenAddress,
-      direction:    inCount >= logs.length / 2 ? "IN" : "OUT",
-      usdValue:     approxUsdValue,
-      walletsCount: Math.min(logs.length, 10),
-      walletLabels: ["on-chain-activity"],
+      direction:    totalInUsd >= totalOutUsd ? "IN" : "OUT",
+      usdValue:     netflowUsd,
+      walletsCount: Math.max(1, whaleTxCount),
+      walletLabels: ["on-chain-whale-netflow"],
     }];
   } catch (err: any) {
     console.warn(`[OnChain] Transfer log fetch failed for ${tokenSymbol}: ${err.message}`);
@@ -329,6 +400,9 @@ export async function fetchNansenBundle(windowHours = 6): Promise<NansenBundle> 
   console.log(`[Nansen] Fetching live smart money flows (${windowHours}h window)...`);
   const start = Date.now();
 
+  // Fetch prices first for USD conversions
+  const prices = await fetchTokenPrices();
+
   // Fetch Nansen global flows
   const nansenFlows = await fetchNansenNetflows();
 
@@ -346,7 +420,8 @@ export async function fetchNansenBundle(windowHours = 6): Promise<NansenBundle> 
 
   const onChainFlows: SmartMoneyFlow[] = [];
   for (const asset of assetsToFallback) {
-    const flows = await fetchOnChainTransfers(asset.address, asset.symbol, windowHours);
+    const price = prices[asset.symbol] || 1.0;
+    const flows = await fetchOnChainTransfers(asset.address, asset.symbol, price, windowHours);
     onChainFlows.push(...flows);
   }
 
@@ -361,4 +436,17 @@ export async function fetchNansenBundle(windowHours = 6): Promise<NansenBundle> 
     smartMoneyFlows: allFlows,
     fetchedAt: Date.now(),
   };
+}
+
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  if (args.includes("--test")) {
+    fetchNansenBundle().then((bundle) => {
+      console.log(JSON.stringify(bundle, null, 2));
+      process.exit(0);
+    }).catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+  }
 }

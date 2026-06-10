@@ -34,7 +34,7 @@ const VAULT_FULL_ABI = [
  */
 async function fetchMantleOnChainState(): Promise<MantleOnChainState> {
   if (!VIGIL_VAULT_ADDRESS) {
-    console.warn("[Aggregator] VIGIL_VAULT_ADDRESS not set — deploy contracts first");
+    console.log("[Aggregator] VIGIL_VAULT_ADDRESS not set — deploy contracts first");
     return {
       currentAllocation: {},
       gasReservoir: 0n,
