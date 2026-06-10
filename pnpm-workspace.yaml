@@ -1,0 +1,11 @@
+packages:
+  - 'packages/*'
+allowBuilds:
+  bufferutil: true
+  keccak: true
+  protobufjs: true
+  secp256k1: true
+  sharp: true
+  sqlite3: true
+  unrs-resolver: true
+  utf-8-validate: true

@@ -36,3 +36,50 @@ services:
 
       - key: PORT
         value: "10000"
+
+  # ─── VIGIL Indexer — WebSocket server for live War Room updates ───────────
+  - type: web
+    name: vigil-indexer
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: packages/indexer
+    buildCommand: npm install
+    startCommand: npx ts-node src/index.ts
+    healthCheckPath: /health
+
+    envVars:
+      - key: MANTLE_RPC_URL
+        value: https://rpc.sepolia.mantle.xyz
+
+      - key: VIGIL_LEDGER_ADDRESS
+        value: "0xcafbDb017b081f1239E8F1ee10A39e7c1A70AF18"
+
+      - key: NODE_ENV
+        value: production
+
+      - key: PORT
+        value: "8080"
+
+  # ─── VIGIL Frontend — War Room Next.js App ───────────────────────────────
+  - type: web
+    name: vigil-frontend
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: packages/frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+
+    envVars:
+      - key: NEXT_PUBLIC_WS_URL
+        value: wss://vigil-indexer.onrender.com
+
+      - key: NEXT_PUBLIC_MANTLE_EXPLORER
+        value: https://sepolia.mantlescan.xyz
+
+      - key: NEXT_PUBLIC_APP_URL
+        fromService:
+          name: vigil-frontend
+          type: web
+          property: host

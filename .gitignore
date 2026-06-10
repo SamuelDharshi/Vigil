@@ -118,8 +118,18 @@ coverage/
 lcov.info
 
 # ─── Misc ───────────────────────────────────────────────
-*.pem
-*.key
 *.cert
 .temp/
 tmp/
+
+# ─── Nested Repositories / Submodules ──────────────────
+nuwa-8004/
+
+# ─── Agent Test Scripts ────────────────────────────────
+packages/agent/src/test-*
+
+# ─── PNPM Lockfile ─────────────────────────────────────
+pnpm-lock.yaml
+
+
+

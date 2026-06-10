@@ -4,6 +4,7 @@
   "private": true,
   "description": "VIGIL — Autonomous RWA Portfolio Agent | Mantle Turing Test Hackathon 2026",
   "workspaces": [
+    "packages/config",
     "packages/contracts",
     "packages/agent",
     "packages/indexer",
