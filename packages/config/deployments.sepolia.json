@@ -1,0 +1,27 @@
+{
+  "chainId": 5003,
+  "network": "mantle_sepolia",
+  "rpc": "https://rpc.sepolia.mantle.xyz",
+  "explorer": "https://sepolia.mantlescan.xyz",
+  "contracts": {
+    "VIGILVault": "0x632C8C9275F67abc106b8d206560E0aED63D3bC2",
+    "VIGILLedger": "0xcafbDb017b081f1239E8F1ee10A39e7c1A70AF18",
+    "FluxionAdapter": "0xbaC4c20d7Bd6ae4e76ae27E57C28212972204110",
+    "SuperPortalAdapter": "0x85AFa13B8fe2f581687b16032751532fA8C3D1e8",
+    "VIGILMockDEX": "0x5fb356f8EC0Fd5CBD0C215621655de7C5a640722"
+  },
+  "erc8004": {
+    "IdentityRegistry": "0x5D1de28E6588915013c961279d0cB5e747364977",
+    "ReputationRegistry": "0xbD38Ac2fD1Fc30eCC9Ebab88A4B76a77b8215002",
+    "ValidationRegistry": "0x933a1c8F708Ea745362b9db38f612277Ac862F15"
+  },
+  "tokens": {
+    "mETH": "0x78A2c75F4be37b2D231bFCd9bb4Fa3CD91359F97",
+    "USDY": "0xc633706c3f41245F78FC4E5115092552cFC1b6F7",
+    "NVDAx": "0xBBF75e649c844D0668dE80CFDeB1C44C6A26b810",
+    "AAPLx": "0x92aD5aB4A07919D593185f20b57B9569C683d306",
+    "TSLAx": "0x7f2BE2B6D664A9C7D9471E6073E8b7b3D7F3e501",
+    "MNT": "0x8b56cD603f50C588A39dC8eA4D2dCb2DdAdDfdb2"
+  },
+  "agentTokenId": "1"
+}

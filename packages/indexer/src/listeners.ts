@@ -174,6 +174,7 @@ async function initSqliteDb(): Promise<void> {
 }
 
 // ─── Event Listener Setup ──────────────────────────────────────────────────────
+let globalProvider: ethers.JsonRpcProvider | null = null;
 
 export async function startEventListeners(): Promise<void> {
   // Initialize local DB schema on boot
@@ -188,6 +189,15 @@ export async function startEventListeners(): Promise<void> {
   // Use HTTP polling mode (every 12s) which works reliably.
   console.log(`[Indexer] Using HTTP polling mode for Mantle Sepolia`);
   const httpProvider = new ethers.JsonRpcProvider(MANTLE_RPC_URL, undefined, { batchMaxCount: 1 });
+  globalProvider = httpProvider;
+
+  try {
+    const block = await httpProvider.getBlockNumber();
+    console.log(`[Indexer] ✅ Connected to Mantle Sepolia RPC. Block #${block}`);
+  } catch (err: any) {
+    console.error(`[Indexer] ❌ Failed to connect to Mantle Sepolia RPC on startup: ${err.message}. Indexer will retry polling automatically.`);
+  }
+
   startPollingListener(httpProvider);
 }
 
@@ -357,4 +367,32 @@ export async function updateAgentStats(stats: Partial<{
       }
     );
   });
+}
+
+export async function checkHealth(): Promise<{ database: boolean; provider: boolean; blockNumber: number | null }> {
+  const health = { database: false, provider: false, blockNumber: null as number | null };
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      db.get("SELECT 1", (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+    health.database = true;
+  } catch (err) {
+    console.error("[Health] Database check failed:", err);
+  }
+
+  if (globalProvider) {
+    try {
+      const block = await globalProvider.getBlockNumber();
+      health.blockNumber = block;
+      health.provider = true;
+    } catch (err) {
+      console.error("[Health] Provider block check failed:", err);
+    }
+  }
+
+  return health;
 }

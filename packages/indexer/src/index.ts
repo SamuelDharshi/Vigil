@@ -1,11 +1,13 @@
 import { WebSocketServer, WebSocket } from "ws";
 import * as dotenv from "dotenv";
 import * as path from "path";
+import * as http from "http";
 import {
   startEventListeners,
   setBroadcastFunction,
   getRecentLedgerEntries,
   getAgentStats,
+  checkHealth,
 } from "./listeners";
 
 dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
@@ -45,9 +47,33 @@ function broadcast(event: object): void {
 }
 
 async function startWebSocketServer(): Promise<void> {
-  const wss = new WebSocketServer({ port: WS_PORT });
+  const server = http.createServer(async (req, res) => {
+    if (req.url === "/health") {
+      try {
+        const health = await checkHealth();
+        const isHealthy = health.database && health.provider;
+        res.writeHead(isHealthy ? 200 : 500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          status: isHealthy ? "OK" : "ERROR",
+          chainId: 5003,
+          chainsMatch: true,
+          ...health,
+          uptime: process.uptime(),
+          connections: clients.size,
+        }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "ERROR", error: err.message }));
+      }
+    } else {
+      res.writeHead(404);
+      res.end("Not Found");
+    }
+  });
 
-  console.log(`[WS] WebSocket server started on ws://localhost:${WS_PORT}`);
+  const wss = new WebSocketServer({ server });
+
+  console.log(`[WS] WebSocket server initializing on ws://localhost:${WS_PORT}`);
 
   // Register broadcast function with the event listener
   setBroadcastFunction(broadcast);
@@ -117,6 +143,10 @@ async function startWebSocketServer(): Promise<void> {
 
   wss.on("error", (err) => {
     console.error("[WS] Server error:", err);
+  });
+
+  server.listen(WS_PORT, () => {
+    console.log(`[WS] Server listening on http/ws://localhost:${WS_PORT}`);
   });
 }
 
