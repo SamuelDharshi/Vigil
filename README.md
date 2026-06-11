@@ -223,6 +223,102 @@ VIGIL utilizes a custom Circom circuit (`circuits/rebalance.circom`) generating 
 
 ---
 
+## ⛽ On-Chain Workflows & UI Architecture
+
+### 1) Self-Sustaining Yield-to-Gas Loop
+VIGIL features a fully automated re-fueling pipeline that swaps yields to maintain gas requirements on-chain:
+
+```text
+      [ mETH Staking / Yield Source ]
+                   │
+                   ▼  (Harvest yield to Agent Wallet)
+        +────────────────────+
+        |   Agent Wallet     |
+        |   (0.05 mETH)      |
+        +──────────┬─────────+
+                   │
+                   ▼  (swapExactTokensForTokens)
+        +────────────────────+
+        |   VIGILMockDEX     |  ◄── [MNT Liquidity Pool]
+        +──────────┬─────────+
+                   │
+                   ▼  (Swapped MNT returned)
+        +────────────────────+
+        |   Agent Wallet     |
+        |   (0.05 MNT)       |
+        +──────────┬─────────+
+                   │
+                   ▼  (fundGasReservoir)
+        +────────────────────+
+        |    VIGILVault      |
+        |   (gasReservoir    |
+        |    funded +0.05)   |
+        +────────────────────+
+```
+
+### 2) zk-SNARK Verification Pipeline
+Cryptographic audit workflow verifying off-chain execution safety before committing to the public ledger:
+
+```text
+     [ Private Inputs ]        [ Public Inputs ]
+       - Asset Scores            - Normal Allocations
+       - Signal Weights          - Confidence Score
+              │                          │
+              └────────────┬─────────────┘
+                           ▼
+                 +───────────────────+
+                 |  Witness Builder  |
+                 |  (rebalance.wasm) |
+                 +─────────┬─────────+
+                           │
+                           ▼  (witness generated)
+                 +───────────────────+
+                 |  Proving Key      |
+                 |  (Groth16 Prover) |
+                 +─────────┬─────────+
+                           │
+                           ▼  (proof.json generated)
+                 +───────────────────+
+                 | submitValidation  |
+                 |  (Ledger Call)    |
+                 +─────────┬─────────+
+                           │
+                           v  (On-Chain Verification)
+                 +───────────────────+
+                 | ValidationRegistry|  ──►  Reverts if proof
+                 | (Mantle Sepolia)  |       signature is invalid!
+                 +───────────────────+
+```
+
+### 3) War Room Operator UI Layout
+The dashboard console is designed to show the continuous cognitive state of the agent at a glance:
+
+```text
+  +------------------------------------------------------------+
+  |  ⬡ VIGIL   [Home]  [War Room]  [Charts]  [Proofs]  [3D view] |  ◄── Navigation Bar
+  +------------------------------------------------------------+
+  |  📊 mETH: $1629.57 ▲ | MNT: $0.53 ▼ | NVDAx: $202.92 ▲      |  ◄── Live Pyth Price Ticker
+  +------------------------------------------------------------+
+  |                                 |                          |
+  |    +-----------------------+    |  +--------------------+  |
+  |    |                       |    |  |  AGENT STATS       |  |
+  |    |                       |    |  |  Reputation: 70    |  |
+  |    |    3D WebGL Canvas    |    |  |  Gas: 10.05 MNT    |  |
+  |    |    Decision Nodes     |    |  +--------------------+  |
+  |    |    (Interactive)      |    |                          |
+  |    |                       |    |  +--------------------+  |
+  |    |                       |    |  |  14-DAY HEATMAP    |  |
+  |    +-----------------------+    |  |  🟩 🟩 🟩 🟥 🟩 🟩  |  |  ◄── Activity Heatmap
+  |                                 |  +--------------------+  |
+  |                                 |                          |
+  +---------------------------------+--------------------------+
+  | NYSE: OPEN | NASDAQ: OPEN                     ● VIGIL LIVE |  ◄── Market Status Bar
+  +------------------------------------------------------------+
+```
+
+---
+
+
 ## 🌟 Key Features
 
 *   **Live Price Ticker Bar**: Glides across the War Room console navigation showing real-time Hermes prices of all tracked L2 assets.
