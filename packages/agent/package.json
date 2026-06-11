@@ -7,7 +7,7 @@
     "cron": "ts-node src/cron.ts",
     "start": "node dist/cron.js",
     "spawn": "ts-node src/identity/spawn.ts",
-    "build": "tsc --outDir dist",
+    "build": "tsc --project ../config && tsc --outDir dist",
     "typecheck": "tsc --noEmit",
     "test:e2e": "ts-node src/e2e-runner.ts",
     "test": "ts-node src/test-all.ts"
