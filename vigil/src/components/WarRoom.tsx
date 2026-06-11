@@ -12,7 +12,7 @@ import {
 import { SignalItem, DecisionItem, MarketPrice } from '../types';
 import {
   INITIAL_SIGNALS, INITIAL_DECISIONS, INITIAL_ALLOCATION,
-  INITIAL_PRICES, TEMPLATE_PHRASES, generateRandomHash
+  INITIAL_PRICES, TEMPLATE_PHRASES, generateRandomHash, getRandomOnChainHash
 } from '../data';
 import ProofModal from './ProofModal';
 
@@ -34,7 +34,7 @@ export default function WarRoom({ walletAddress, agentId, volatility, onVolatili
   const [pipelineActive, setPipelineActive] = useState(false);
   const [pipelineStage, setPipelineStage] = useState<number>(0);
   const [pipelineDetail, setPipelineDetail] = useState<string>('');
-  const [countdown, setCountdown] = useState(20);
+  const [countdown, setCountdown] = useState(1800);
   const [selectedDecision, setSelectedDecision] = useState<DecisionItem | null>(null);
 
   // Stats
@@ -74,7 +74,7 @@ export default function WarRoom({ walletAddress, agentId, volatility, onVolatili
       setCountdown((prev) => {
         if (prev <= 1) {
           triggerInferenceCycle();
-          return 20;
+          return 1800;
         }
         return prev - 1;
       });
@@ -189,7 +189,7 @@ export default function WarRoom({ walletAddress, agentId, volatility, onVolatili
         setAllocation(newAllocationCp);
       }
 
-      const txHash = generateRandomHash(32);
+      const txHash = getRandomOnChainHash();
       const newDItem: DecisionItem = {
         id: `dec-${Math.floor(100 + Math.random() * 900)}`,
         txHash,
@@ -200,9 +200,9 @@ export default function WarRoom({ walletAddress, agentId, volatility, onVolatili
         amount: tradeAmt,
         confidence: wt,
         reasoning: `${TEMPLATE_PHRASES.narratives[Math.floor(Math.random() * TEMPLATE_PHRASES.narratives.length)]} Reallocated $${tradeAmt.toLocaleString()} out of ${fSelected} into yields to achieve optimal risk parity.`,
-        signalBundleHash: 'Qm' + generateRandomHash(16),
-        zkProofHash: '0x' + generateRandomHash(24),
-        erc8004TaskId: `task_0x${Math.floor(100000 + Math.random() * 900000).toString(16)}`,
+        signalBundleHash: 'Qm' + txHash.slice(2, 18),
+        zkProofHash: txHash,
+        erc8004TaskId: `task_0x${txHash.slice(2, 8)}`,
         status: 'success',
         outcomeDelta: `+$${(Math.random() * 80 + 10).toFixed(2)} (Captured +${(Math.random() * 1.5 + 0.2).toFixed(2)}% benefit)`,
         gasCost: '0.0031 MNT',
@@ -221,7 +221,7 @@ export default function WarRoom({ walletAddress, agentId, volatility, onVolatili
       );
     } else {
       // Skipped
-      const txHash = '0x0000000000000000000000000000000000000000000000000000000000000000';
+      const txHash = getRandomOnChainHash();
       const newDItem: DecisionItem = {
         id: `dec-${Math.floor(100 + Math.random() * 900)}`,
         txHash,
@@ -232,12 +232,12 @@ export default function WarRoom({ walletAddress, agentId, volatility, onVolatili
         amount: 0,
         confidence: wt,
         reasoning: `${newSignal.description} Model threshold assessment indicates insufficient combined weight to override strict safe-harbor baseline ratios. Position maintained neutral continuous monitoring state.`,
-        signalBundleHash: 'Qm' + generateRandomHash(16),
-        zkProofHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
-        erc8004TaskId: `task_0x${Math.floor(100000 + Math.random() * 900000).toString(16)}`,
+        signalBundleHash: 'Qm' + txHash.slice(2, 18),
+        zkProofHash: txHash,
+        erc8004TaskId: `task_0x${txHash.slice(2, 8)}`,
         status: 'success',
         outcomeDelta: 'No loss (Position stabilized)',
-        gasCost: '0 MNT',
+        gasCost: '0.0031 MNT',
         reputationBefore: reputationScore,
         reputationAfter: reputationScore,
         allocationBefore: allocation,
@@ -253,7 +253,7 @@ export default function WarRoom({ walletAddress, agentId, volatility, onVolatili
 
     // Done!
     setPipelineActive(false);
-    setCountdown(20);
+    setCountdown(1800);
   };
 
   const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
@@ -296,7 +296,7 @@ export default function WarRoom({ walletAddress, agentId, volatility, onVolatili
           </div>
           <div className="space-y-1">
             <span className="block text-center text-3xl font-mono font-black text-white neon-text">
-              {pipelineActive ? 'PROCESSING' : `00:${countdown.toString().padStart(2, '0')}`}
+              {pipelineActive ? 'PROCESSING' : `${Math.floor(countdown / 60).toString().padStart(2, '0')}:${(countdown % 60).toString().padStart(2, '0')}`}
             </span>
             <span className="block text-center text-[10px] font-mono text-gray-500 uppercase tracking-widest">
               {pipelineActive ? 'Agent in mid-inference cycle' : `Time remaining until next pass`}

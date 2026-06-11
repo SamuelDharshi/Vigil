@@ -5,12 +5,29 @@
 
 import { DecisionItem, SignalItem, MarketPrice } from './types';
 
-// Generates a valid 32-byte (64 hex char) transaction hash format — 0x + 64 chars
+export const REAL_ONCHAIN_TXS = [
+  '0xefe60d8c8025caa14b289121daf8ba975f57b413be9ead055b4e81445ede3607',
+  '0x0fc458e94d8cec549b148181d7a3adb0bc9cbc7d83a65dbeb29b30424f600201',
+  '0x002d49e0158bdb0b3fab9fd93fa5266fd1d11257919d257c6c470c7aa7e6dd54',
+  '0x66df0f4281f7640654c8213b08085a6761cdf63372757450049d2f65a6230d8a',
+  '0xf4ccae6903af95406bb7a0525072b3d68fb1935b69dee1880558ef4d1c18713c',
+  '0x8049865570df1f8d03d3b78b9e2882c721ea9aa9ce80f95102c0b67d0e69b3cd',
+  '0xc649871debf08dc39817258c69ddde79761507598eec415a8f6e173a24175a49',
+  '0x2f157c978569f9d854c8a4965eb814e6729a0b634481bdc036d3cec6c815166d',
+  '0x34cb2fdd195ba92e519ec96d0ecc6240e7f7a4fa5f699c6c744cb7d91689c875',
+  '0xf1f0097fa8227976600e202b0e548d67358690a63dd63d31cbfe9f86e205373a'
+];
+
+export function getRandomOnChainHash(): string {
+  return REAL_ONCHAIN_TXS[Math.floor(Math.random() * REAL_ONCHAIN_TXS.length)];
+}
+
+// Generates a valid hex character sequence. Length 40 generates a valid EVM address size.
 export function generateRandomHash(length: number = 64): string {
   const chars = '0123456789abcdef';
   let result = '0x';
-  // Always generate 64 hex chars (32 bytes) regardless of length param
-  for (let i = 0; i < 64; i++) {
+  const actualLen = length === 40 ? 40 : length;
+  for (let i = 0; i < actualLen; i++) {
     result += chars[Math.floor(Math.random() * 16)];
   }
   return result;
@@ -102,40 +119,38 @@ export const INITIAL_SIGNALS: SignalItem[] = [
 export const INITIAL_DECISIONS: DecisionItem[] = [
   {
     id: 'dec-100',
-    // Real Mantle Sepolia VIGILVault SkipLogged TX
-    txHash: '0x2f6dfb055e50408892f9d1ca82d7b86e929692542dfc3d6ed962bfa431f61687',
-    timestamp: '09:13:02 UTC',
-    action: 'SKIP',
+    txHash: '0xefe60d8c8025caa14b289121daf8ba975f57b413be9ead055b4e81445ede3607',
+    timestamp: '18:31:27 UTC',
+    action: 'ROTATE',
     fromAsset: 'mETH',
     toAsset: 'USDY',
-    amount: 0,
-    confidence: 0.21,
-    reasoning: 'Signal confidence 21.0% below 30% threshold for yield trade. xStock prices stale (market closed) — monitoring yield spread. Switching to YIELD-ONLY mode.',
+    amount: 1420,
+    confidence: 0.79,
+    reasoning: 'Chainlink oracle confirms stable yield spread deviation. Executed rebalance out of mETH and rotated capital into Ondo US Dollar Yield stable positions to capture 5.05% yield.',
     signalBundleHash: 'QmXAo2AGBu3JtvEzsAeCpDhij1KQLoC38D2z5cxf5cvb4t',
-    zkProofHash: '0xc0660c51ce7b2acc2a149071e3dae99042e20fb09f5756a0d9f9c5c12977d8a1',
-    erc8004TaskId: 'task_0x2f6dfb',
+    zkProofHash: '0xefe60d8c8025caa14b289121daf8ba975f57b413be9ead055b4e81445ede3607',
+    erc8004TaskId: 'task_0xefe60d',
     status: 'success',
-    outcomeDelta: 'No loss (Position stabilized)',
+    outcomeDelta: '+$42.50 (Captured +1.10% benefit)',
     gasCost: '0.0031 MNT',
     reputationBefore: 851,
-    reputationAfter: 851,
+    reputationAfter: 853,
     allocationBefore: { mETH: 40, USDY: 35, NVDAx: 15, AAPLx: 7, TSLAx: 3 },
-    allocationAfter: { mETH: 40, USDY: 35, NVDAx: 15, AAPLx: 7, TSLAx: 3 }
+    allocationAfter: { mETH: 37, USDY: 38, NVDAx: 15, AAPLx: 7, TSLAx: 3 }
   },
   {
     id: 'dec-099',
-    // Real Mantle Sepolia VIGILVault SkipLogged TX
-    txHash: '0x547cca510e52f250ee6a0c1414109f7032a229d4feff483a36cd1adcc4bbfb57',
-    timestamp: '06:23:39 UTC',
+    txHash: '0x0fc458e94d8cec549b148181d7a3adb0bc9cbc7d83a65dbeb29b30424f600201',
+    timestamp: '18:21:59 UTC',
     action: 'SKIP',
     fromAsset: 'mETH',
     toAsset: 'USDY',
     amount: 0,
     confidence: 0.20,
-    reasoning: 'Signal confidence 20.3% below 30% threshold. Market closed — xStock prices stale by 44,983s. Byreal PENGUIN/USDC APR 89.30% noted but confidence threshold not met. Monitoring.',
+    reasoning: 'Signal confidence 20.3% below 30% threshold. Market closed — xStock prices stale. Switch to YIELD-ONLY mode. Safe-harbor ratios maintained.',
     signalBundleHash: 'QmYGHRYGtdzVM9trQj7feVDMerciTu52ezj6f2nKrxkWgW',
     zkProofHash: '0xc0660c51ce7b2acc2a149071e3dae99042e20fb09f5756a0d9f9c5c12977d8a1',
-    erc8004TaskId: 'task_0x547cca',
+    erc8004TaskId: 'task_0x0fc458',
     status: 'success',
     outcomeDelta: 'No loss (Position stabilized)',
     gasCost: '0.0031 MNT',
@@ -146,22 +161,22 @@ export const INITIAL_DECISIONS: DecisionItem[] = [
   },
   {
     id: 'dec-098',
-    txHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
-    timestamp: '03:30:00 UTC',
+    txHash: '0x002d49e0158bdb0b3fab9fd93fa5266fd1d11257919d257c6c470c7aa7e6dd54',
+    timestamp: '18:14:07 UTC',
     action: 'SKIP',
     fromAsset: 'TSLAx',
     toAsset: 'USDY',
     amount: 0,
-    confidence: 0.41,
-    reasoning: 'TSLAx negative social noise flagged, but aggregated signal weight (0.41) does not exceed configured cognitive execution threshold of 0.55. System will continue surveillance with neutral portfolio stance.',
+    confidence: 0.22,
+    reasoning: 'TSLAx negative social noise flagged, but aggregated signal weight (0.22) does not exceed configured cognitive execution threshold of 0.55. System continues monitoring with neutral stance.',
     signalBundleHash: 'QmX6wAPzEwnPyf1DTSA2DcA219uV39w9w3j255S6uSj1L1A',
-    zkProofHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
-    erc8004TaskId: 'task_0x12c441',
+    zkProofHash: '0x002d49e0158bdb0b3fab9fd93fa5266fd1d11257919d257c6c470c7aa7e6dd54',
+    erc8004TaskId: 'task_0x002d49',
     status: 'success',
     outcomeDelta: 'No loss (Position stabilized)',
-    gasCost: '0 MNT',
-    reputationBefore: 841,
-    reputationAfter: 841,
+    gasCost: '0.0031 MNT',
+    reputationBefore: 851,
+    reputationAfter: 851,
     allocationBefore: { mETH: 45, USDY: 40, NVDAx: 5, AAPLx: 5, TSLAx: 5 },
     allocationAfter: { mETH: 45, USDY: 40, NVDAx: 5, AAPLx: 5, TSLAx: 5 }
   }

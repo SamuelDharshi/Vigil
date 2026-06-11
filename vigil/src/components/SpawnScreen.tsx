@@ -13,7 +13,7 @@ interface SpawnScreenProps {
 }
 
 export default function SpawnScreen({ onSpawnComplete }: SpawnScreenProps) {
-  const [wallet, setWallet] = useState('0x71C7656EC7ab88b098defB751B7401B5f6d8976F'); // standard sample
+  const [wallet, setWallet] = useState('0xac13a62FC7E50d08945ba2e79B5Eaa190d8D7D9a'); // standard sample
   const [customWallet, setCustomWallet] = useState(false);
   const [isSpawning, setIsSpawning] = useState(false);
   const [spawnStage, setSpawnStage] = useState(0);

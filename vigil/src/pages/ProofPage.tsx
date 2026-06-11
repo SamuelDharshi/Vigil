@@ -6,33 +6,35 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Shield, CheckCircle2, ExternalLink, ChevronDown, ChevronRight, Copy, Hash } from 'lucide-react';
-import { INITIAL_DECISIONS } from '../data';
-import { generateRandomHash } from '../data';
+import { INITIAL_DECISIONS, REAL_ONCHAIN_TXS } from '../data';
 
 // Extend decisions with more entries for the proof page
 const ALL_PROOFS = [
   ...INITIAL_DECISIONS,
-  ...Array.from({ length: 12 }, (_, i) => ({
-    id: `dec-extra-${i}`,
-    txHash: '0x' + generateRandomHash(32),
-    timestamp: `${String(Math.floor(Math.random() * 23)).padStart(2, '0')}:${String(Math.floor(Math.random() * 59)).padStart(2, '0')} UTC`,
-    action: ['ROTATE', 'SKIP', 'CLMM_OPEN'][i % 3] as any,
-    fromAsset: ['NVDAx', 'mETH', 'TSLAx'][i % 3],
-    toAsset: ['USDY', 'USDY', 'mETH'][i % 3],
-    amount: i % 3 !== 1 ? Math.floor(500 + Math.random() * 4000) : 0,
-    confidence: parseFloat((0.4 + Math.random() * 0.55).toFixed(2)),
-    reasoning: 'Signal model convergence detected. Threshold exceeded for rotation.',
-    signalBundleHash: 'Qm' + generateRandomHash(16),
-    zkProofHash: '0x' + generateRandomHash(24),
-    erc8004TaskId: `task_0x${Math.floor(100000 + Math.random() * 900000).toString(16)}`,
-    status: 'success' as const,
-    outcomeDelta: i % 3 !== 1 ? `+$${(Math.random() * 80 + 10).toFixed(2)}` : 'No change',
-    gasCost: i % 3 !== 1 ? '0.0031 MNT' : '0 MNT',
-    reputationBefore: 840 + i,
-    reputationAfter: 843 + i,
-    allocationBefore: { mETH: 40, USDY: 35, NVDAx: 15, AAPLx: 7, TSLAx: 3 },
-    allocationAfter: { mETH: 37, USDY: 38, NVDAx: 15, AAPLx: 7, TSLAx: 3 },
-  }))
+  ...Array.from({ length: 12 }, (_, i) => {
+    const txHash = REAL_ONCHAIN_TXS[i % REAL_ONCHAIN_TXS.length];
+    return {
+      id: `dec-extra-${i}`,
+      txHash,
+      timestamp: `${String(Math.floor(Math.random() * 23)).padStart(2, '0')}:${String(Math.floor(Math.random() * 59)).padStart(2, '0')} UTC`,
+      action: ['ROTATE', 'SKIP', 'CLMM_OPEN'][i % 3] as any,
+      fromAsset: ['NVDAx', 'mETH', 'TSLAx'][i % 3],
+      toAsset: ['USDY', 'USDY', 'mETH'][i % 3],
+      amount: i % 3 !== 1 ? Math.floor(500 + Math.random() * 4000) : 0,
+      confidence: parseFloat((0.4 + Math.random() * 0.55).toFixed(2)),
+      reasoning: 'Signal model convergence detected. Threshold exceeded for rotation.',
+      signalBundleHash: 'Qm' + txHash.slice(2, 18),
+      zkProofHash: txHash,
+      erc8004TaskId: `task_0x${txHash.slice(2, 8)}`,
+      status: 'success' as const,
+      outcomeDelta: i % 3 !== 1 ? `+$${(Math.random() * 80 + 10).toFixed(2)}` : 'No change',
+      gasCost: i % 3 !== 1 ? '0.0031 MNT' : '0 MNT',
+      reputationBefore: 840 + i,
+      reputationAfter: 843 + i,
+      allocationBefore: { mETH: 40, USDY: 35, NVDAx: 15, AAPLx: 7, TSLAx: 3 },
+      allocationAfter: { mETH: 37, USDY: 38, NVDAx: 15, AAPLx: 7, TSLAx: 3 },
+    };
+  })
 ];
 
 function copyToClipboard(text: string) {

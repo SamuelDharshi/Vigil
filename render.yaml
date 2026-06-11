@@ -5,7 +5,7 @@ services:
     runtime: node
     region: oregon      # closest to Mantle Sepolia RPC
     plan: free
-    buildCommand: npx pnpm install --no-frozen-lockfile && npx pnpm --filter agent run build
+    buildCommand: npx pnpm install --no-frozen-lockfile && npx pnpm --filter @vigil/config run build && npx pnpm --filter agent run build
     startCommand: node packages/agent/dist/cron.js
     healthCheckPath: /health
 
@@ -28,7 +28,7 @@ services:
         value: https://rpc.sepolia.mantle.xyz
 
       - key: VIGIL_VAULT_ADDRESS
-        value: "0x2D252F4b54A2F8F4c43E6e3CF437B60b9058991F"
+        value: "0x632C8C9275F67abc106b8d206560E0aED63D3bC2"
 
       - key: NODE_ENV
         value: production
