@@ -5,9 +5,8 @@ services:
     runtime: node
     region: oregon      # closest to Mantle Sepolia RPC
     plan: free
-    rootDir: packages/agent
-    buildCommand: npm install && npm run build
-    startCommand: node dist/cron.js
+    buildCommand: npx pnpm install --no-frozen-lockfile && npx pnpm --filter agent run build
+    startCommand: node packages/agent/dist/cron.js
     healthCheckPath: /health
 
     envVars:
@@ -43,9 +42,8 @@ services:
     runtime: node
     region: oregon
     plan: free
-    rootDir: packages/indexer
-    buildCommand: npm install
-    startCommand: npx ts-node src/index.ts
+    buildCommand: npx pnpm install --no-frozen-lockfile
+    startCommand: npx ts-node packages/indexer/src/index.ts
     healthCheckPath: /health
 
     envVars:
@@ -67,9 +65,8 @@ services:
     runtime: node
     region: oregon
     plan: free
-    rootDir: packages/frontend
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    buildCommand: npx pnpm install --no-frozen-lockfile && npx pnpm --filter frontend run build
+    startCommand: npx pnpm --filter frontend start
 
     envVars:
       - key: NEXT_PUBLIC_WS_URL
@@ -83,3 +80,4 @@ services:
           name: vigil-frontend
           type: web
           property: host
+
