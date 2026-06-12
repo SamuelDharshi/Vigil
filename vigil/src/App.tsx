@@ -84,10 +84,7 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 text-xs font-mono text-gray-400 border border-white/10 rounded-full px-3.5 py-1 bg-white/5">
-            <span className="w-2 h-2 rounded-full bg-[#00FF7F] animate-pulse" />
-            Mantle: AI × RWA Track
-          </div>
+
 
           {/* Page nav links */}
           <div className="hidden md:flex items-center gap-1">
@@ -181,10 +178,7 @@ export default function App() {
             <section className="min-h-screen flex flex-col justify-center items-start text-left px-8 md:px-16 lg:px-24 pt-24 relative w-full">
               <div className="max-w-3xl space-y-6 md:space-y-8">
                 
-                <div className="inline-flex items-center gap-2 rounded-full border border-[#00FF7F]/20 bg-[#00FF7F]/5 px-3.5 py-1 font-mono text-xs text-[#00FF7F] shadow-lg shadow-[#00FF7F]/5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#00FF7F]" />
-                  <span>Mantle Turing Test Hackathon Entry</span>
-                </div>
+
 
                 <h1 className="font-sans text-4xl md:text-6xl lg:text-7xl leading-[0.9] font-black tracking-tighter neon-text uppercase text-white">
                   THE MARKET<br />
