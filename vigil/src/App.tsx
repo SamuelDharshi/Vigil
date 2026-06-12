@@ -178,36 +178,36 @@ export default function App() {
             className="flex flex-col relative z-20"
           >
             {/* HERO SECTION */}
-            <section className="min-h-screen flex flex-col justify-center items-center text-center px-4 md:px-8 pt-20 relative">
-              <div className="max-w-5xl space-y-8">
+            <section className="min-h-screen flex flex-col justify-center items-start text-left px-6 md:px-16 lg:px-24 pt-24 relative max-w-7xl mx-auto">
+              <div className="max-w-3xl space-y-6 md:space-y-8">
                 
                 <div className="inline-flex items-center gap-2 rounded-full border border-[#00FF7F]/20 bg-[#00FF7F]/5 px-3.5 py-1 font-mono text-xs text-[#00FF7F] shadow-lg shadow-[#00FF7F]/5">
                   <Sparkles className="w-3.5 h-3.5 text-[#00FF7F]" />
                   <span>Mantle Turing Test Hackathon Entry</span>
                 </div>
 
-                <h1 className="font-sans text-5xl md:text-[105px] leading-[0.85] font-black tracking-tighter neon-text uppercase text-white">
+                <h1 className="font-sans text-4xl md:text-6xl lg:text-7xl leading-[0.9] font-black tracking-tighter neon-text uppercase text-white">
                   THE MARKET<br />
                   NEVER <span className="text-transparent text-stroke-neon">SLEEPS.</span><br />
                   NEITHER DOES <span className="text-[#00FF7F]">VIGIL.</span>
                 </h1>
 
-                <p className="font-sans text-lg md:text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed font-light">
+                <p className="font-sans text-sm md:text-base text-gray-400 max-w-xl leading-relaxed font-light">
                   Traditional multi-billion dollar equity books freeze every Friday at 4:00 PM. On-chain, execution is eternal. VIGIL is an autonomous sentinel continuously rebalancing portfolios across mETH, stable treasury yields, and tokenized real-assets (xStocks).
                 </p>
 
-                <div className="flex flex-col sm:flex-row gap-5 justify-center items-center pt-4">
+                <div className="flex flex-col sm:flex-row gap-4 justify-start items-center pt-2">
                   <button
                     id="hero-spawn-trigger-btn"
                     onClick={() => setShowSpawn(true)}
-                    className="w-full sm:w-auto py-4 px-10 bg-[#00FF7F] text-black font-black rounded-sm text-xs uppercase tracking-wider transform -skew-x-12 hover:scale-105 transition-all cursor-pointer shadow-lg shadow-[#00FF7F]/20"
+                    className="w-full sm:w-auto py-3 px-8 bg-[#00FF7F] text-black font-black rounded-sm text-xs uppercase tracking-wider transform -skew-x-12 hover:scale-105 transition-all cursor-pointer shadow-lg shadow-[#00FF7F]/20"
                   >
                     <div className="skew-x-12">Deploy Autonomous Agent</div>
                   </button>
                   <a
                     id="hero-scroll-trigger-btn"
                     href="#details-features"
-                    className="w-full sm:w-auto py-4 px-10 border border-white/20 hover:border-white/40 hover:bg-white/5 rounded-sm text-xs font-mono tracking-wider font-bold text-gray-300 hover:text-white transform -skew-x-12 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full sm:w-auto py-3 px-8 border border-white/20 hover:border-white/40 hover:bg-white/5 rounded-sm text-xs font-mono tracking-wider font-bold text-gray-300 hover:text-white transform -skew-x-12 transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <div className="skew-x-12 flex items-center gap-1.5">
                       Explore Philosophy
@@ -217,8 +217,8 @@ export default function App() {
                 </div>
 
                 {/* Clock indicator inside landing */}
-                <div className="pt-10 max-w-lg mx-auto">
-                  <div className="p-4 bg-white/5 border border-white/10 rounded-xl font-mono text-xs text-gray-400 flex items-center justify-center gap-4">
+                <div className="pt-4 max-w-md">
+                  <div className="p-3 bg-white/5 border border-white/10 rounded-lg font-mono text-[10px] md:text-xs text-gray-400 flex items-center justify-start gap-3">
                     <span>NYSE / NASDAQ: <span className="text-[#ff0055]">CLOSED</span></span>
                     <span className="text-gray-700">|</span>
                     <span className="flex items-center gap-1.5 text-[#00FF7F]">
@@ -231,7 +231,7 @@ export default function App() {
               </div>
 
               {/* Scroll prompt marker */}
-              <div className="absolute bottom-8 flex flex-col items-center gap-1">
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1">
                 <span className="text-[10px] font-mono uppercase tracking-widest text-gray-600">Scroll to explore Market</span>
                 <motion.div
                   animate={{ y: [0, 6, 0] }}
