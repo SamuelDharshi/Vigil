@@ -287,20 +287,16 @@ export default function ThreeBackground({ scrollProgress, volatility, enableOrbi
         camera.position.z = Math.cos(o.azimuth) * radius * Math.cos(o.elevation);
         camera.lookAt(0, 4, 0);
       } else {
-        // Scroll-driven mode (landing page)
-        const isLargeScreen = typeof window !== 'undefined' && window.innerWidth > 1024;
-        const shiftX = isLargeScreen ? -14 : 0;
-        const lookShiftX = isLargeScreen ? 6 : 0;
-
-        const targetCamX = shiftX + Math.sin(elapsed * 0.05) * 15 + Math.sin(currentScroll * Math.PI) * 10;
-        const targetCamY = 22 - currentScroll * 15;
-        const targetCamZ = 45 - currentScroll * 25 + Math.cos(elapsed * 0.03) * 5;
+        // Scroll-driven mode (landing page) - Zoomed out and centered
+        const targetCamX = Math.sin(elapsed * 0.05) * 15 + Math.sin(currentScroll * Math.PI) * 10;
+        const targetCamY = 32 - currentScroll * 20; // Zoomed out (originally 22)
+        const targetCamZ = 68 - currentScroll * 35 + Math.cos(elapsed * 0.03) * 5; // Zoomed out (originally 45)
         
         camera.position.x += (targetCamX - camera.position.x) * 0.03;
         camera.position.y += (targetCamY - camera.position.y) * 0.03;
         camera.position.z += (targetCamZ - camera.position.z) * 0.03;
         
-        const lookTarget = new THREE.Vector3(lookShiftX, 5 - currentScroll * 5, -currentScroll * 10);
+        const lookTarget = new THREE.Vector3(0, 5 - currentScroll * 5, -currentScroll * 10);
         camera.lookAt(lookTarget);
       }
 
