@@ -1,104 +1,104 @@
-<div align="center">
-  <img src="packages/frontend/public/favicon.ico" alt="VIGIL Logo" width="80" height="80" style="border-radius: 16px; margin-bottom: 16px; box-shadow: 0 8px 24px rgba(0,208,151,0.2);" />
+# ⬡ VIGIL — The Market Never Sleeps. Neither Does VIGIL.
 
-  # ⬡ VIGIL
+> "Traditional equity books freeze every Friday at 4:00 PM. On-chain, execution is eternal."  
+> **One agent. 30-minute cycles. Zero-knowledge audits. Complete safety.**
 
-  ### Autonomous RWA & CLMM Portfolio Agent with On-Chain ZK Proof Audits on Mantle
-  
-  [![Mantle Network](https://img.shields.io/badge/Network-Mantle_Sepolia-00D097?style=flat-square&logo=ethereum)](https://sepolia.mantlescan.xyz)
-  [![ZK Proofs](https://img.shields.io/badge/ZK-Circom_Groth16-8b5cf6?style=flat-square)](https://github.com/iden3/snarkjs)
-  [![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
-  [![Submission](https://img.shields.io/badge/Hackathon-Mantle_Turing_Test_2026-F59E0B?style=flat-square)](https://mantle.xyz)
-
-  **"VIGIL watches the market, reasons over multi-source sentiment, validates safety guardrails, executes cross-chain trades, and generates zero-knowledge proofs—running 24/7/365 entirely on-chain."**
-</div>
+**VIGIL** is an autonomous, non-custodial RWA & CLMM portfolio sentinel on Mantle. It optimizes yields, reasons over multi-source sentiment, validates safety guardrails, executes cross-chain trades, and generates zero-knowledge proofs (zk-SNARKs) to cryptographically audit and verify its off-chain AI decision-making.
 
 ---
 
 ## 📖 Table of Contents
 1. [Project Overview](#-project-overview)
-2. [Problem Statement](#-problem-statement)
-3. [The VIGIL Solution](#-the-vigil-solution)
-4. [Market Opportunity](#-market-opportunity)
-5. [Competitive Analysis](#-competitive-analysis)
-6. [Architecture Layer](#-architecture-layer)
-7. [Technical Deep Dive](#-technical-deep-dive)
-8. [Key Features](#-key-features)
-9. [Technology Stack](#-technology-stack)
-10. [Repository Structure](#-repository-structure)
-11. [Local Development Setup](#-local-development-setup)
-12. [Smart Contract Deployments](#-smart-contract-deployments)
-13. [End-to-End User Flow](#-end-to-end-user-flow)
-14. [Security, Guardrails & Scalability](#-security-guardrails--scalability)
-15. [Future Roadmap](#-future-roadmap)
-16. [Links & Resources](#-links--resources)
-17. [Acknowledgements](#-acknowledgements)
-18. [License](#-license)
+2. [The Problem in One Line](#-the-problem-in-one-line)
+3. [Market Context & Statistics](#-market-context--statistics)
+4. [The 3 Core Problems, Solved](#-the-3-core-problems-solved)
+5. [Without VIGIL vs. With VIGIL](#-without-vigil-vs-with-vigil)
+6. [What Makes VIGIL Unique](#-what-makes-vigil-unique)
+7. [System Architecture](#-system-architecture)
+8. [The 9-Step Agent Pipeline](#-the-9-step-agent-pipeline)
+9. [On-Chain Workflows & UI Layouts](#-on-chain-workflows--ui-layouts)
+10. [Protocols & Standards](#-protocols--standards)
+11. [Contract Addresses (Mantle Sepolia)](#-contract-addresses-mantle-sepolia)
+12. [Risk Scoring & Decision Model](#-risk-scoring--decision-model)
+13. [Key Code Snippets](#-key-code-snippets)
+14. [Project Directory Structure](#-project-directory-structure)
+15. [Instructions: How to Use VIGIL](#-instructions-how-to-use-vigil)
+16. [Getting Started & Local Development](#-getting-started--local-development)
+17. [License](#-license)
 
 ---
 
 ## 👁️ Project Overview
+VIGIL is an autonomous portfolio optimization agent deployed on Mantle. It continuously synthesizes real-world data (RWA feeds, DEX volumes, social sentiment, and smart money flows) to rebalance assets across automated market makers (AMMs), concentrated liquidity pools (CLMMs), and tokenized equities.
 
-**VIGIL** is an autonomous portfolio optimization agent deployed on Mantle. It continuously synthesizes real-world data (RWA feeds, DEX volumes, social sentiment, and smart money flows) to rebalance assets across automated market makers (AMMs), concentrated liquidity pools (CLMMs), and tokenized equities.
-
-Unlike traditional trading bots that execute trades silently behind closed API keys, VIGIL introduces **Zero-Knowledge Proof Auditing** to AI agent execution. For every decision made (whether executing a swap or choosing to skip a cycle due to low confidence), the agent compiles local zk-SNARK proofs of its inputs and calculations, submitting them directly to ERC-8004 validation registries on-chain. 
-
-```
-   [RAW DATA FEEDS]           [AI ENGINE]             [ZK-PROVER]          [MANTLE LEDGER]
-   Prices + Sentiment  ───>  Reasoning Logic  ───>  Groth16 Proofs  ───>  Verifiable On-Chain
-```
+Unlike traditional trading bots that execute trades silently behind closed API keys, VIGIL introduces **Zero-Knowledge Proof Auditing** to AI agent execution. For every decision made (whether executing a swap or choosing to skip a cycle due to low confidence), the agent compiles local zk-SNARK proofs of its inputs and calculations, submitting them directly to ERC-8004 validation registries on-chain.
 
 ---
 
-## ⚠️ Problem Statement
-
-Autonomous agents are rapidly taking control of web3 capital, yet they remain complete black boxes:
-
-*   **The Trust Gap**: Users must trust that an off-chain AI model behaves safely and doesn't execute malicious trades, front-run user funds, or manipulate slippage parameters.
-*   **Oracle Dependency**: Most DeFi automation relies solely on basic price feeds, ignoring social momentum and capital flow data that dictates modern market movements.
-*   **Execution Fragmentation**: Traditional agents operate within isolated ecosystems, missing high-yield opportunities in concentrated liquidity pools (CLMMs) and bridging options.
-*   **Auditing Absence**: There is no historical trail proving *why* a bot decided to make a trade or why it stood idle during major market swings.
+## ⚠️ The Problem in One Line
+Autonomous trading agents operate as opaque "black boxes" with no safety guarantees, no verifiable audit trails, and high vulnerability to front-running or malicious execution.
 
 ---
 
-## 💡 The VIGIL Solution
+## 📊 Market Context & Statistics
 
-VIGIL solves these challenges by combining multi-source signal processing, strict on-chain guardrails, and cryptographic audits:
-
-*   **Verifiable AI Execution**: Every trade or skip action is verified by a zk-SNARK circuit. You can cryptographically prove that the agent followed its scoring algorithms and threshold guardrails.
-*   **Multi-Dimensional Signals**: Aggregates Pyth Network price feeds, Elfa AI keyword sentiment metrics, and Nansen Smart Money tracking signals.
-*   **On-Chain Guardrails (VIGILVault.sol)**: Strict maximum slippage caps (40 bps) and token whitelists are enforced by Mantle smart contracts—ensuring the agent can never execute malicious swaps.
-*   **Verifiable Ledger (VIGILLedger.sol)**: Records every cycle decision on-chain, creating an immutable timeline of agent performance and reasoning.
-
----
-
-## 📈 Market Opportunity
-
-The convergence of **Real World Assets (RWAs)**, **Autonomous Agents**, and **Layer-2 Scaling Solutions** is creating a massive market inflection point:
-
-*   **RWA Total Value Locked**: Predicted to reach **$10 Trillion** by 2030 (BCG Research), tokenized equities and interest-bearing assets require active yield optimization.
-*   **Mantle Ecosystem Growth**: High-throughput, low-fee architecture makes Mantle the perfect home for intensive agent calculations, indexers, and high-frequency state updates.
-*   **DeFi Agent Segment**: Verifiable execution enables institutional capital to delegate yield management to autonomous systems without losing transparency.
+| Metric | Number | Source |
+| :--- | :---: | :--- |
+| **Total DeFi hacks (2024)** | $2.85 Billion | CoinMarketCap |
+| **Total DeFi hacks (H1 2025)** | $3.10 Billion (exceeds all of 2024) | CoinMarketCap |
+| **Access-control exploits** | 59% of all 2025 DeFi losses ($1.8B+) | Ainvest |
+| **Avg. Slippage Loss on L2s** | 0.5% – 2.0% invisible tax on every trade | Degen0x |
+| **Traditional Market Downtime** | 108 hours of trading freeze every weekend | NYSE / NASDAQ |
 
 ---
 
-## 📊 Competitive Analysis
+## 🔍 The 3 Core Problems, Solved
 
-| Feature | Traditional Bots | AI Agents (Standard) | VIGIL Agent |
-| :--- | :---: | :---: | :---: |
-| **Data Ingestion** | Price Only | Basic API | Pyth + Nansen + Elfa AI |
-| **Trust Model** | Centralized | Trust Me | **zk-SNARK Verifiable** |
-| **Slippage Guardrails** | Hardcoded | Model-Derived | **On-Chain Vault Caps (40 bps)** |
-| **Audit Trails** | Database Logs | None | **On-Chain Ledger (ERC-8004)** |
-| **Cross-Chain Yield** | No | Manual Integration | **Byreal CLMM Integration** |
+### Problem 1 — The Black Box Trust Gap
+Autonomous trading bots make execution decisions (swaps, entries, or skips) silently behind closed API keys. Users have no proof of logic alignment, leaving them vulnerable to silent front-running, model tampering, or unauthorized reallocations.
+* **VIGIL Solution**: Every single cycle decision generates a local **zk-SNARK (Groth16)** proof of its input variables and calculations. The agent submits these proof hashes to ERC-8004 validation registries on Mantle Sepolia, creating an immutable, cryptographically verifiable audit trail.
+
+### Problem 2 — High Slippage & Front-Running
+Autonomous models running off-chain can experience API latency or manipulation, leading to wide slippage tolerances that get sandwiched by MEV bots or executed at terrible rates.
+* **VIGIL Solution**: Strict maximum slippage caps (40 bps) and token whitelists are hardcoded and enforced directly on-chain by the `VIGILVault.sol` contract. Any quote exceeding this cap is rejected before submission.
+
+### Problem 3 — Gas Depletion & Loop Halt
+Constant signal checking and on-chain rotations quickly drain the agent's wallet gas. If the agent's gas wallet goes dry, the loop halts, leaving the portfolio unmonitored.
+* **VIGIL Solution**: A self-sustaining yield-to-gas loop. VIGIL stakes idle yield capital (e.g. `mETH`), harvests yields automatically, and swaps them via `VIGILMockDEX` to fund the gas reservoir inside the `VIGILVault` without user intervention.
 
 ---
 
-## 🏗️ Architecture Layer
+## ⚖️ Without VIGIL vs. With VIGIL
 
-The following ASCII diagram represents the high-level infrastructure of VIGIL:
+| Feature | Without VIGIL | With VIGIL |
+| :--- | :---: | :---: |
+| **Trust Model** | Opaque "Black Box" | **zk-SNARK Verifiable** |
+| **Audit Trails** | Database logs (tamperable) | **On-Chain Ledger (ERC-8004)** |
+| **Slippage Guardrails** | Model-Derived (variable) | **Hardcoded Vault Cap (40 bps)** |
+| **Security Whitelists** | Off-chain filter | **On-chain contract enforced** |
+| **Gas Management** | Manual top-ups required | **Self-Refueling Yield-to-Gas Loop** |
+| **Market Coverage** | Closed weekends | **24/7/365 Autonomous Execution** |
+| **API Failures** | Execution halts | **Fault-tolerant RFQ Fallback** |
 
-```
+---
+
+## 🛡️ What Makes VIGIL Unique
+
+| Feature | VIGIL Agent | Traditional Trading Bots |
+| :--- | :---: | :---: |
+| **zk-SNARK Audited** | **✓ Yes (Groth16)** | ✗ No |
+| **40 Bps hard cap** | **✓ Contract Enforced** | ✗ Hardcoded or none |
+| **Multi-Oracle Signals** | **✓ Pyth + Elfa AI + Nansen** | ✗ Price feeds only |
+| **Automatic Refuel** | **✓ Yield-to-Gas Loop** | ✗ Manual |
+| **Cross-Chain Yield** | **✓ Byreal CLMM Integration** | ✗ Fixed strategies |
+| **Interactive 3D Engine** | **✓ WebGL Node Canvas** | ✗ Basic dashboards |
+
+---
+
+## 🏗️ System Architecture
+
+### 1. Data and Control Flow Layout
+```text
                                 VIGIL ARCHITECTURE LAYER
                               
     +--------------------------------------------------------------------------------+
@@ -162,7 +162,7 @@ The following ASCII diagram represents the high-level infrastructure of VIGIL:
                                              |
                                              v
     +----------------------------------------|---------------------------------------+
-    |                                   INDEXER & UI                         |
+    |                                   INDEXER & UI                                 |
     |                                                                                |
     |  +-------------------------------------v------------------------------------+  |
     |  |                            SQLite Database Indexer                       |  |
@@ -171,17 +171,14 @@ The following ASCII diagram represents the high-level infrastructure of VIGIL:
     |                                        |
     |                                        v
     |  +-------------------------------------+------------------------------------+  |
-    |  |                             Next.js War Room Console                     |  |
+    |  |                             WebGL War Room Console                       |  |
     |  |                 (3D Canvas state rendering, real-time tickers)           |  |
     |  +--------------------------------------------------------------------------+  |
     +--------------------------------------------------------------------------------+
 ```
 
----
-
-## 🛠️ Technical Deep Dive
-
-### 🔄 The Execution Cycle Sequence Flow
+### 2. Sequence Diagram (Decision to Execution)
+The sequence diagram below displays the transaction pipeline for the VIGIL agent during a single cycle:
 
 ```mermaid
 sequenceDiagram
@@ -190,40 +187,43 @@ sequenceDiagram
     participant Agg as Signal Aggregator
     participant Dec as Decision Engine
     participant Vault as VIGIL Vault
-    participant Exec as Executor / Adapter
-    participant Proof as ZK Proof System
-    participant Ledger as VIGIL Ledger
+    participant Exec as Executor (Fluxion RFQ)
+    participant Proof as ZK Prover (SnarkJS)
+    participant Ledger as VIGIL Ledger (ERC-8004)
     participant UI as Frontend Dashboard
 
-    Cron->>Agg: Collect market, sentiment, and on-chain signals
-    Agg->>Dec: Submit SignalBundle
-    Dec->>Vault: Validate guardrails and thresholds
-    alt Skip cycle
-        Dec->>Ledger: Record skipped decision
-    else Execute cycle
-        Dec->>Exec: Route execution request
-        Exec-->>Dec: Return tx hash and execution result
-        Dec->>Proof: Generate Groth16 proof
-        Proof-->>Ledger: Write proof metadata and result
-        Ledger-->>UI: Emit event for live dashboard
+    Cron->>Agg: Collect market prices, sentiment, and smart money logs
+    Agg->>Dec: Submit normalized SignalBundle
+    Dec->>Vault: Check Whitelist & Slippage limits
+    alt Skip cycle (Threshold not met or Slippage too high)
+        Dec->>Ledger: Record skipped decision with justification
+        Ledger-->>UI: Update timeline to show SKIP
+    else Execute cycle (Conditions met)
+        Dec->>Exec: Route execution payload (swap quote)
+        Exec-->>Dec: Return txHash and execution result
+        Dec->>Proof: Generate Groth16 verification proof
+        Proof-->>Ledger: Submit proof metadata + validation status
+        Ledger-->>UI: Broadcast rebalance event & update 3D nodes
     end
 ```
 
-### 🛰️ The Signal Layers & Oracles
+---
 
-1.  **Pyth Network Hermes**: Real-time asset pricing for `mETH`, `MNT`, and tokenized equity indexes.
-2.  **Elfa AI Mentions API**: Direct sentiment keywords processing. Measures community velocity indicators, preventing trades when negative social spikes are detected.
-3.  **Nansen Smart Money / Transfer Logs Fallback**: Tracks large movement pools on Mantle Sepolia to weigh in-flow momentum during decision scoring.
-
-### 🔐 Zero-Knowledge Verification Logic
-VIGIL utilizes a custom Circom circuit (`circuits/rebalance.circom`) generating Groth16 ZK-proofs:
-*   **Private Inputs**: Scoring parameters, signal values, agent key flags.
-*   **Public Inputs**: Normalized outputs, minimum threshold variables, resulting action index.
-*   **Output**: Verification keys verified on-chain to confirm that the off-chain engine followed the designated algorithmic logic without alteration.
+## 🔄 The 9-Step Agent Pipeline
+VIGIL operates on a strict **30-minute cron interval**. In every single cycle, it executes the following 9 steps to ensure absolute auditability:
+1. **INGEST**: Fetches real-time price data from Pyth, keyword sentiment metrics from Elfa AI, and smart money flows from Nansen.
+2. **IPFS**: Immediately pins the raw `SignalBundle` to IPFS for verification.
+3. **WEIGH**: Runs the scoring model to calculate confidence scores for portfolio assets.
+4. **BYREAL**: Analyzes cross-chain CLMM yield opportunities on Byreal.
+5. **EXECUTE**: Requests an RFQ quote from Fluxion. If confidence exceeds the threshold and slippage is under 40 bps, executes the swap; otherwise, logs a `SKIP` decision.
+6. **ZK PROOF**: Compiles a local ZK-proof (Groth16) validating the inputs and resulting decision.
+7. **IPFS PROOF**: Pins the generated ZK proof and metadata JSON to IPFS.
+8. **ERC-8004**: Submits the proof hash to the Validation Registry on-chain and updates the agent's reputation.
+9. **VAULT LOG**: Commits transaction metadata and proof mappings to `VIGILLedger.sol`.
 
 ---
 
-## ⛽ On-Chain Workflows & UI Architecture
+## ⛽ On-Chain Workflows & UI Layouts
 
 ### 1) Self-Sustaining Yield-to-Gas Loop
 VIGIL features a fully automated re-fueling pipeline that swaps yields to maintain gas requirements on-chain:
@@ -318,123 +318,21 @@ The dashboard console is designed to show the continuous cognitive state of the 
 
 ---
 
+## 🛰️ Protocols & Standards
 
-## 🌟 Key Features
-
-*   **Live Price Ticker Bar**: Glides across the War Room console navigation showing real-time Hermes prices of all tracked L2 assets.
-*   **14-Day Activity Heatmap**: Interactive, color-coded calendar blocks representing day-to-day decisions, executions, and skips.
-*   **Interactive 3D Engine Canvas**: A WebGL-rendered interactive node map showing the continuous flow of variables through Oracles, Decision Filters, Guardrails, and Ledger contracts.
-*   **Paginated On-Chain Audit Proofs**: Filterable ledger lists mapping every single transaction to its corresponding ZK proof hash, block explorer receipt, and metadata JSON.
-
----
-
-## 💻 Technology Stack
-
-*   **Frontend**: Next.js 16 (App Router), React 19, TypeScript, Three.js / WebGL.
-*   **Styling**: Premium Glassmorphic Vanilla CSS (No Tailwind dependencies).
-*   **Agent Core**: Node.js, `ethers.js`, `@byreal-io/byreal-cli`.
-*   **ZK Prover**: Circom 2.1, SnarkJS (Groth16 Proving Scheme).
-*   **Contracts**: Solidity, Hardhat, Ethers, OpenZeppelin.
-*   **Indexer**: SQLite 3, Websockets (`ws` server).
+| Protocol / Standard | Role |
+| :--- | :--- |
+| **ERC-8004** | Manages agent identity creation and reputation scoring on-chain |
+| **zk-SNARK / Circom** | Generates Groth16 cryptographic validation proofs of signal scoring |
+| **Pyth Hermes** | Supplies real-time, low-latency price feeds for portfolio assets |
+| **Elfa AI Mentions** | Provides social media mention velocity and keyword sentiment tracking |
+| **Nansen Analytics** | Tracks smart money transaction flows to measure buying pressure |
+| **VIGILVault** | Non-custodial smart contract enforcing Whitelisting and 40 bps Slippage |
+| **VIGILLedger** | The public ledger containing proof hashes, decision results, and tx hashes |
 
 ---
 
-## 📂 Repository Structure
-
-```
-vigil/
-├── packages/
-│   ├── agent/                 # Autonomous agent loop, scoring, and ZK proof generation
-│   │   ├── src/
-│   │   │   ├── executor/      # Trade execution and bridge adapters
-│   │   │   ├── identity/      # ERC-8004 identity minting and IPFS upload scripts
-│   │   │   ├── proof/         # ZK circuit input builders and snarkjs wrappers
-│   │   │   ├── signals/       # Pyth, Elfa AI, and Nansen API clients
-│   │   │   └── cron.ts        # Primary 30-minute agent cycle runner
-│   ├── contracts/             # Smart contracts and deployment scripts
-│   │   ├── src/
-│   │   │   ├── adapters/      # Fluxion and SuperPortal cross-chain adapters
-│   │   │   ├── VIGILLedger.sol# On-chain decision ledger contract
-│   │   │   ├── VIGILVault.sol # Asset-holding vault contract with strict guardrails
-│   │   │   └── registries/    # Custom fallback ERC-8004 registries
-│   ├── frontend/              # Web application
-│   │   ├── src/app/
-│   │   │   ├── api/           # Backend data routes and agent card API
-│   │   │   ├── proof/         # Proof index listing and detail pages
-│   │   │   ├── warroom/       # Live interactive console and 3D node canvas
-│   ├── indexer/               # SQLite Event Sync Indexer
-│   │   ├── src/
-│   │   │   ├── index.ts       # Express server and WebSockets broadcaster
-│   │   │   └── listeners.ts   # Blockchain event subscriber
-├── render.yaml                # Unified cloud deployment configuration
-└── package.json               # Monorepo configuration file
-```
-
----
-
-## 🚀 Local Development Setup
-
-### 📋 Prerequisites
-*   Node.js v20+
-*   pnpm (v8 or newer)
-*   SQLite3
-
-### 🔧 Installation
-1. Clone the repository and install workspace dependencies:
-   ```bash
-   git clone https://github.com/SamuelDharshi/Vigil.git
-   cd Vigil
-   pnpm install
-   ```
-
-2. Copy the environment template and set up variables:
-   ```bash
-   cp .env.example .env
-   ```
-
-3. Fill in the required `.env` keys:
-   ```env
-   AGENT_PRIVATE_KEY=your_mantle_agent_private_key
-   ELFA_API_KEY=your_elfa_api_key
-   PINATA_JWT=your_pinata_jwt_token
-   NEXT_PUBLIC_WS_URL=ws://localhost:8080
-   ```
-
-### 🏃 Running VIGIL Locally
-
-Use the global workspace shortcuts to launch different layers:
-
-*   **Test Smart Contracts**:
-    ```bash
-    pnpm contracts:test
-    ```
-
-*   **Deploy Contracts to Sepolia**:
-    ```bash
-    pnpm contracts:deploy
-    ```
-
-*   **Start the WebSocket Event Indexer**:
-    ```bash
-    pnpm indexer:dev
-    ```
-
-*   **Execute a single Agent Decision Cycle**:
-    ```bash
-    pnpm agent:cron
-    ```
-
-*   **Start the Frontend Console**:
-    ```bash
-    pnpm frontend:dev
-    ```
-    Open [http://localhost:3000](http://localhost:3000) in your browser.
-
----
-
-## 📝 Smart Contract Deployments
-
-VIGIL is deployed on **Mantle Sepolia Testnet (ChainId 5003)**:
+## 📝 Contract Addresses (Mantle Sepolia)
 
 | Contract | Address | Explorer Link |
 | :--- | :---: | :---: |
@@ -446,46 +344,174 @@ VIGIL is deployed on **Mantle Sepolia Testnet (ChainId 5003)**:
 
 ---
 
-## 🔄 End-to-End User Flow
+## ⚡ Risk Scoring & Decision Model
+The agent scores each asset from 0 to 100 (50 being neutral). The total score is computed using a three-factor weighted model:
+$$\text{Score} = 50 + (\text{Yield Spread} \times 35) + (\text{Smart Money Flow} \times 40) + (\text{Sentiment Delta} \times 25)$$
 
+### Score Deductions:
+* **Market Status Closed**: Swaps for stock indices are disabled (agent falls back to yield-only swaps).
+* **Slippage Alert**: If the requested RFQ quote has a slippage/price impact $>40$ bps, the transaction is hard-rejected.
+* **Registry Failure**: Non-fatal warning is raised, but execution continues on the ledger.
+
+---
+
+## 💻 Key Code Snippets
+
+### 1. Three-Factor Asset Scoring (`packages/agent/src/decision/engine.ts`)
+```typescript
+export function scoreAsset(asset: string, bundle: SignalBundle): number {
+  let score = 50; // neutral baseline
+
+  // ─── Factor 1: Yield Differential (weight: 0.35) ─────────────────────────
+  if (asset === "USDY" || asset === "mETH") {
+    const yieldSpread = bundle.chainlink.usdyYield - bundle.chainlink.mEthApr;
+    const yieldScore = yieldSpread * SIGNAL_WEIGHTS.YIELD_DIFFERENTIAL * 100;
+    if (asset === "USDY") {
+      score += yieldScore;
+    } else {
+      score -= yieldScore;
+    }
+  }
+
+  // ─── Factor 2: Smart Money Flows (weight: 0.40) ───────────────────────────
+  const smFlows = bundle.nansen.smartMoneyFlows.filter(
+    f => f.token === asset || f.token.toLowerCase().startsWith(asset.toLowerCase())
+  );
+  const netSmFlowUSD = smFlows.reduce((acc, f) => acc + (f.direction === "IN" ? f.usdValue : -f.usdValue), 0);
+  const smNormalized = Math.sign(netSmFlowUSD) * Math.min(Math.abs(netSmFlowUSD) / 1_000_000, 1);
+  score += smNormalized * SIGNAL_WEIGHTS.SMART_MONEY * 20;
+
+  // ─── Factor 3: Social Sentiment Delta (weight: 0.25) ─────────────────────
+  const sentDelta = bundle.elfa.sentimentDeltas[asset] ?? 0;
+  score += sentDelta * SIGNAL_WEIGHTS.SOCIAL_SENTIMENT * 15;
+
+  return Math.max(0, Math.min(100, score));
+}
 ```
-   +--------------------+     +-------------------+     +------------------+
-   | Landing Console    | ──> | Immersive 3D View | ──> | Proof Registry   |
-   | Active Live status |     | Engine operations |     | Cryptographic ZK |
-   +--------------------+     +-------------------+     +------------------+
+
+### 2. Hardcoded Slippage Cap Guardrail (`packages/agent/src/executor/fluxion.ts`)
+```typescript
+const MAX_SLIPPAGE_BPS = 40; // 0.40% slippage limit
+
+export async function executeXStockTrade(fromToken: string, toToken: string, amount: bigint): Promise<ExecutionResult> {
+  const quote = await requestFluxionRfq(fromToken, toToken, amount);
+  
+  // Hardcoded safety check before submitting transaction on-chain
+  if (quote.priceImpactBps > MAX_SLIPPAGE_BPS) {
+    throw new Error(`Execution aborted: Price impact of ${quote.priceImpactBps} bps exceeds vault slippage limit of ${MAX_SLIPPAGE_BPS} bps.`);
+  }
+
+  return submitQuoteToFluxionVault(quote);
+}
 ```
 
-1.  **System Observation**: Visitors land on the root console, inspecting the real-time Pyth Price Feed and the live status badge showing active agent processing.
-2.  **Immersive Operations**: Users click into `/dashboard` to load the 3D control workspace, viewing live node data flows as API signals are generated.
-3.  **Audited Timeline**: Opening `/proof` lets users inspect the dynamic activity heatmap, filter decision categories, and view individual block transactions containing verified inputs.
+---
+
+## 📂 Project Directory Structure
+```text
+Vigil/
+├── packages/
+│   ├── agent/                 # Autonomous rebalancing loop & ZK proof gen
+│   │   ├── src/
+│   │   │   ├── executor/      # RFQ DEX & cross-chain bridge adapters
+│   │   │   ├── identity/      # ERC-8004 identity minting & IPFS pinning
+│   │   │   ├── proof/         # ZK circuit input generation wrappers
+│   │   │   └── cron.ts        # Primary 30-minute agent cycle runner
+│   ├── contracts/             # Vault, Ledger & ERC-8004 Registry contracts
+│   │   ├── src/
+│   │   │   ├── VIGILLedger.sol# On-chain execution ledger contract
+│   │   │   └── VIGILVault.sol # Asset-holding vault enforcing 40bps slippage
+│   ├── indexer/               # SQLite blockchain event indexer
+│   │   └── src/index.ts       # Express server & WebSockets broadcaster
+│   └── frontend/              # Next.js App Router (War Room Console)
+└── vigil/                     # Vite React client (Alternative UI workspace)
+```
 
 ---
 
-## 🔒 Security, Guardrails & Scalability
+## 📋 Instructions: How to Use VIGIL
 
-*   **Strict On-Chain Guardrails**: `VIGILVault` limits execution swaps to pre-registered token addresses, blocking arbitrary transfers. Max slippage is capped on-chain at 40 bps.
-*   **Fault-Tolerant RFQ Fallback**: The Fluxion Executor Adapter implements network classification fallbacks. In the case of API failures on testnet, the system signs a fallback quote matching security parameters without halting agent operations.
-*   **Performance Indexing**: Local SQLite indexing decouples frontend WebSocket updates from heavy block queries, preventing rate-limiting delays.
+### Step 1: Deploying Your Agent (Spawn Screen)
+1. Launch the frontend dashboard (details below).
+2. Click **"Deploy Agent"** in the top navigation bar or the hero section.
+3. Paste your **Mantle Sepolia wallet address** and click **"Spawn Identity"**.
+4. The system will compile your metadata card, pin it to IPFS, and mint your ERC-8004 agent identity.
+
+### Step 2: Monitoring the War Room
+* **3D Node Map**: Once spawned, the War Room displays an interactive WebGL canvas representing the agent's flow of reasoning (Oracles → Engine → Vault → ZK Prover → Ledger).
+* **Volatility Knob**: Drag the volatility slider to adjust agent sensitivity. High volatility triggers frequent guardrail alerts.
+* **Telemetry Feeds**: Monitor the live Pyth Network price tickers at the top and the incoming raw mentions from the Elfa AI Sentiment panel.
+
+### Step 3: Auditing Cryptographic Proofs
+1. Go to the **"Proofs"** page from the navigation bar.
+2. Review the **14-Day Activity Heatmap** showing the daily transaction outcomes (successful swaps in green, skipped cycles in dark red).
+3. Click on any past decision in the ledger list to view its complete details:
+   * **ZK Proof Status**: Verifies that the proof signature was checked on-chain.
+   * **Mantle Sepolia Explorer**: Click the transaction hash to view the real contract execution receipt on Mantlescan.
+   * **IPFS Signal Metadata**: Inspect the raw inputs pinned to IPFS.
+
+### Step 4: Testing the Demo Override
+* Because traditional stock markets are closed on weekends and after-hours, the agent defaults to a safety "closed" state.
+* **To force-test cycles during the hackathon**: Click the **"TRADITIONAL MARKETS"** status bar in the bottom footer. This toggles a demo override state that opens the markets, letting you showcase active rebalancing swaps to the judges!
 
 ---
 
-## 🗺️ Future Roadmap
+## 🏃 Getting Started & Local Development
 
-*   **Multi-Agent Negotiation**: Enable agents to swap quotes cross-chain with other ERC-8004 instances using the custom `/api/agent` endpoint.
-*   **Fully-Compounding Vault Positions**: Support automated yield farming cycles in Mantle DEX pools.
-*   **Recursive ZK proof bundles**: Batch multiple execution cycles into single recursive proofs to optimize gas consumption.
+### 📋 Prerequisites
+* Node.js v20+
+* pnpm (v8 or newer)
+* SQLite3
 
----
+### 🔧 Installation
+1. Clone the repository and install workspace dependencies:
+```bash
+git clone https://github.com/SamuelDharshi/Vigil.git
+cd Vigil
+pnpm install
+```
 
-## 🔗 Links & Resources
-*   **Mantle Sepolia Explorer**: [https://sepolia.mantlescan.xyz](https://sepolia.mantlescan.xyz)
-*   **Pyth Price Feeds**: [https://pyth.network](https://pyth.network)
-*   **Elfa AI Developer API**: [https://elfa.ai](https://elfa.ai)
+2. Copy the environment template and set up variables:
+```bash
+cp .env.example .env
+```
 
----
+3. Fill in the required `.env` keys:
+```env
+AGENT_PRIVATE_KEY=your_mantle_agent_private_key
+ELFA_API_KEY=your_elfa_api_key
+PINATA_JWT=your_pinata_jwt_token
+NEXT_PUBLIC_WS_URL=ws://localhost:8080
+```
 
-## 🤝 Acknowledgements
-Special thanks to the **Mantle Turing Test Hackathon 2026** organizers, Pyth Network developer support, and the creators of the ERC-8004 standard for enabling verifiable agent architectures.
+### 🏃 Running VIGIL Locally
+Use the global workspace shortcuts to launch different layers:
+
+* **Test Smart Contracts**:
+  ```bash
+  pnpm contracts:test
+  ```
+
+* **Deploy Contracts to Sepolia**:
+  ```bash
+  pnpm contracts:deploy
+  ```
+
+* **Start the WebSocket Event Indexer**:
+  ```bash
+  pnpm indexer:dev
+  ```
+
+* **Execute a single Agent Decision Cycle**:
+  ```bash
+  pnpm agent:cron
+  ```
+
+* **Start the Frontend Console**:
+  ```bash
+  pnpm frontend:dev
+  ```
+  Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
