@@ -17,7 +17,8 @@
     "agent:cron": "pnpm --filter agent cron",
     "indexer:dev": "pnpm --filter indexer dev",
     "frontend:dev": "pnpm --filter frontend dev",
-    "frontend:build": "pnpm --filter frontend build"
+    "frontend:build": "pnpm --filter frontend build",
+    "build": "npm run --prefix packages/frontend build"
   },
   "devDependencies": {
     "typescript": "^5.4.0"
