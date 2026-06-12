@@ -178,7 +178,7 @@ export default function App() {
             className="flex flex-col relative z-20"
           >
             {/* HERO SECTION */}
-            <section className="min-h-screen flex flex-col justify-center items-start text-left px-6 md:px-16 lg:px-24 pt-24 relative max-w-7xl mx-auto">
+            <section className="min-h-screen flex flex-col justify-center items-start text-left px-8 md:px-16 lg:px-24 pt-24 relative w-full">
               <div className="max-w-3xl space-y-6 md:space-y-8">
                 
                 <div className="inline-flex items-center gap-2 rounded-full border border-[#00FF7F]/20 bg-[#00FF7F]/5 px-3.5 py-1 font-mono text-xs text-[#00FF7F] shadow-lg shadow-[#00FF7F]/5">
@@ -193,7 +193,7 @@ export default function App() {
                 </h1>
 
                 <p className="font-sans text-sm md:text-base text-gray-400 max-w-xl leading-relaxed font-light">
-                  Traditional multi-billion dollar equity books freeze every Friday at 4:00 PM. On-chain, execution is eternal. VIGIL is an autonomous sentinel continuously rebalancing portfolios across mETH, stable treasury yields, and tokenized real-assets (xStocks).
+                  An autonomous portfolio sentinel continuously optimizing yields across mETH, stable treasury rates, and tokenized equities on Mantle.
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-4 justify-start items-center pt-2">
