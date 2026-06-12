@@ -287,10 +287,10 @@ export default function ThreeBackground({ scrollProgress, volatility, enableOrbi
         camera.position.z = Math.cos(o.azimuth) * radius * Math.cos(o.elevation);
         camera.lookAt(0, 4, 0);
       } else {
-        // Scroll-driven mode (landing page) - Zoomed out and centered
+        // Scroll-driven mode (landing page) - Zoomed out and centered behind text
         const targetCamX = Math.sin(elapsed * 0.05) * 15 + Math.sin(currentScroll * Math.PI) * 10;
-        const targetCamY = 32 - currentScroll * 20; // Zoomed out (originally 22)
-        const targetCamZ = 68 - currentScroll * 35 + Math.cos(elapsed * 0.03) * 5; // Zoomed out (originally 45)
+        const targetCamY = 22 - currentScroll * 15; // Revert to original height to lift elements behind text
+        const targetCamZ = 54 - currentScroll * 25 + Math.cos(elapsed * 0.03) * 5; // Zoomed out from 45, but closer than 68
         
         camera.position.x += (targetCamX - camera.position.x) * 0.03;
         camera.position.y += (targetCamY - camera.position.y) * 0.03;
