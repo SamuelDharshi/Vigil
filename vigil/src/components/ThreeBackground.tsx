@@ -10,9 +10,10 @@ interface ThreeBackgroundProps {
   scrollProgress: number; // 0 to 1 representing position on landing page
   volatility: number;     // 0.1 to 2.0 to dynamic animate speed/turbulence
   enableOrbit?: boolean;  // enable mouse drag orbit (for dedicated 3D page)
+  theme?: 'dark' | 'light';
 }
 
-export default function ThreeBackground({ scrollProgress, volatility, enableOrbit = false }: ThreeBackgroundProps) {
+export default function ThreeBackground({ scrollProgress, volatility, enableOrbit = false, theme = 'dark' }: ThreeBackgroundProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef(scrollProgress);
   const orbitRef = useRef({ azimuth: 0, elevation: 0.3, dragging: false, lastX: 0, lastY: 0 });
@@ -31,7 +32,8 @@ export default function ThreeBackground({ scrollProgress, volatility, enableOrbi
 
     // SCENE & CAMERA
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x020202, 0.015);
+    const fogColor = theme === 'light' ? 0xf8fafc : 0x020202;
+    scene.fog = new THREE.FogExp2(fogColor, 0.015);
 
     const camera = new THREE.PerspectiveCamera(65, width / height, 0.1, 1000);
     camera.position.set(0, 20, 45);
@@ -41,7 +43,7 @@ export default function ThreeBackground({ scrollProgress, volatility, enableOrbi
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x020202, 1);
+    renderer.setClearColor(fogColor, 1);
     container.appendChild(renderer.domElement);
 
     // MOUSE DRAG ORBIT
@@ -375,7 +377,7 @@ export default function ThreeBackground({ scrollProgress, volatility, enableOrbi
       scene.clear();
       renderer.dispose();
     };
-  }, [volatility, enableOrbit]);
+  }, [volatility, enableOrbit, theme]);
 
   return <div id="three-canvas-root" ref={containerRef} className="absolute inset-0 w-full h-full z-0" style={{ cursor: enableOrbit ? 'grab' : 'default' }} />;
 }

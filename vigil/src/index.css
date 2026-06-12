@@ -7,10 +7,39 @@
   --font-serif: "Instrument Serif", serif;
 }
 
+:root {
+  --bg-primary: #020202;
+  --bg-header: rgba(2, 2, 2, 0.9);
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --border-color: rgba(255, 255, 255, 0.05);
+  --border-color-strong: rgba(255, 255, 255, 0.12);
+  --text-primary: #ffffff;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --neon-accent: #00FF7F;
+  --neon-glow: rgba(0, 255, 127, 0.4);
+  --card-shadow: none;
+}
+
+#vigil-root-container.light {
+  --bg-primary: #f8fafc;
+  --bg-header: rgba(248, 250, 252, 0.9);
+  --bg-card: rgba(255, 255, 255, 0.85);
+  --border-color: rgba(15, 23, 42, 0.08);
+  --border-color-strong: rgba(15, 23, 42, 0.15);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --neon-accent: #00b359;
+  --neon-glow: rgba(0, 179, 89, 0.2);
+  --card-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
+}
+
 body {
-  background-color: #020202;
+  background-color: var(--bg-primary);
   overflow-x: hidden;
-  color-scheme: dark;
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Custom scrollbar formatting */
@@ -30,16 +59,16 @@ body {
 
 /* Bold Typography & Neon Accents styling */
 .neon-text {
-  text-shadow: 0 0 20px rgba(0, 255, 127, 0.4);
+  text-shadow: 0 0 20px var(--neon-glow);
 }
 
 .text-stroke-neon {
-  -webkit-text-stroke: 1.5px #00FF7F;
-  text-stroke: 1.5px #00FF7F;
+  -webkit-text-stroke: 1.5px var(--neon-accent);
+  text-stroke: 1.5px var(--neon-accent);
 }
 
 .order-book-line {
-  border-left: 3px solid #00FF7F;
+  border-left: 3px solid var(--neon-accent);
   background: linear-gradient(to right, rgba(0, 255, 127, 0.05), transparent);
 }
 
@@ -49,4 +78,105 @@ body {
 
 .skew-btn-content {
   transform: skewX(12deg);
+}
+
+/* ═══════════════════════════════════════════════════════
+   Light Theme Style Overrides
+   ═══════════════════════════════════════════════════════ */
+.light {
+  color-scheme: light;
+}
+
+/* Main Container overrides */
+.light#vigil-root-container {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Header overrides */
+.light header {
+  background-color: var(--bg-header) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Text elements */
+.light h1, .light h2, .light h3, .light h4, .light h5, .light h6,
+.light .text-white,
+.light #vigil-root-container h1,
+.light #vigil-root-container h2,
+.light #vigil-root-container h3,
+.light #vigil-root-container h4,
+.light #vigil-root-container .text-white {
+  color: var(--text-primary) !important;
+}
+
+.light p,
+.light .text-gray-300,
+.light .text-gray-400,
+.light #vigil-root-container p,
+.light #vigil-root-container .text-gray-300,
+.light #vigil-root-container .text-gray-400 {
+  color: var(--text-secondary) !important;
+}
+
+.light .text-gray-500,
+.light #vigil-root-container .text-gray-500 {
+  color: var(--text-muted) !important;
+}
+
+/* Border Overrides */
+.light .border-white\/5,
+.light .border-white\/10,
+.light #vigil-root-container .border-white\/5,
+.light #vigil-root-container .border-white\/10 {
+  border-color: var(--border-color) !important;
+}
+
+.light .border-white\/20,
+.light #vigil-root-container .border-white\/20 {
+  border-color: var(--border-color-strong) !important;
+}
+
+/* Cards & Panel Overrides */
+.light .bg-white\/5,
+.light .bg-white\/3,
+.light .bg-white\/8,
+.light .bg-\[\#0b0c10\],
+.light #vigil-root-container .bg-white\/5,
+.light #vigil-root-container .bg-white\/3,
+.light #vigil-root-container .bg-white\/8,
+.light #vigil-root-container .bg-\[\#0b0c10\] {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: var(--card-shadow) !important;
+}
+
+.light .bg-\[\#020202\],
+.light #vigil-root-container .bg-\[\#020202\] {
+  background-color: var(--bg-primary) !important;
+}
+
+/* Buttons / Toggles */
+.light #theme-toggle-btn {
+  border-color: var(--border-color) !important;
+  background-color: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+}
+.light #theme-toggle-btn:hover {
+  background-color: var(--border-color) !important;
+}
+
+/* Accent overlays */
+.light .bg-\[\#00FF7F\]\/5,
+.light #vigil-root-container .bg-\[\#00FF7F\]\/5 {
+  background-color: rgba(0, 179, 89, 0.06) !important;
+}
+.light .border-\[\#00FF7F\]\/20,
+.light #vigil-root-container .border-\[\#00FF7F\]\/20 {
+  border-color: rgba(0, 179, 89, 0.25) !important;
+}
+
+.light .text-\[\#00FF7F\],
+.light #vigil-root-container .text-\[\#00FF7F\] {
+  color: var(--neon-accent) !important;
 }

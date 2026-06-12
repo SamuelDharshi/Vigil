@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, Sparkles, HelpCircle, ChevronDown, CheckCircle2, AlertCircle, TrendingUp, Info, BarChart2, Database, Box } from 'lucide-react';
+import { Shield, Sparkles, HelpCircle, ChevronDown, CheckCircle2, AlertCircle, TrendingUp, Info, BarChart2, Database, Box, Sun, Moon } from 'lucide-react';
 import ThreeBackground from './components/ThreeBackground';
 import SpawnScreen from './components/SpawnScreen';
 import WarRoom from './components/WarRoom';
@@ -23,6 +23,11 @@ export default function App() {
   const [wallet, setWallet] = useState('');
   const [agentId, setAgentId] = useState('047');
 
+  // Theme state
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark';
+  });
+
   // Page Scroll Tracker
   useEffect(() => {
     const handleScroll = () => {
@@ -38,6 +43,17 @@ export default function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  useEffect(() => {
+    const root = document.getElementById('vigil-root-container');
+    if (!root) return;
+    if (theme === 'light') {
+      root.classList.add('light');
+    } else {
+      root.classList.remove('light');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
   const handleSpawnComplete = (userWallet: string, assignedId: string) => {
     setWallet(userWallet);
     setAgentId(assignedId);
@@ -46,10 +62,10 @@ export default function App() {
   };
 
   return (
-    <div id="vigil-root-container" className="relative min-h-screen bg-[#020202] overflow-x-hidden selection:bg-[#00FF7F]/30 selection:text-white">
+    <div id="vigil-root-container" className="relative min-h-screen bg-[#020202] overflow-x-hidden selection:bg-[#00FF7F]/30 selection:text-white transition-colors duration-300">
       
       {/* Absolute FIXED Three.js background reacting smoothly to scrolls & volatility */}
-      <ThreeBackground scrollProgress={scrollProgress} volatility={volatility} />
+      <ThreeBackground scrollProgress={scrollProgress} volatility={volatility} theme={theme} />
 
       {/* Floating Header */}
       <header className="fixed top-0 left-0 right-0 h-16 border-b border-white/5 bg-[#020202]/90 backdrop-blur-md z-40 px-4 md:px-8 py-3 flex items-center justify-between">
@@ -90,6 +106,20 @@ export default function App() {
               </button>
             ))}
           </div>
+
+          {/* Theme Toggle Button */}
+          <button
+            id="theme-toggle-btn"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="p-2 rounded border border-white/10 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all cursor-pointer flex items-center justify-center"
+            title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+          >
+            {theme === 'dark' ? (
+              <Sun className="w-3.5 h-3.5 text-[#00FF7F]" />
+            ) : (
+              <Moon className="w-3.5 h-3.5 text-gray-800" />
+            )}
+          </button>
           
           {!isSpawned && !showSpawn && (
             <button
