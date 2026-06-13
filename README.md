@@ -336,11 +336,11 @@ The dashboard console is designed to show the continuous cognitive state of the 
 
 | Contract | Address | Explorer Link |
 | :--- | :---: | :---: |
-| **VIGILVault** | `0x632C8C9275F67abc106b8d206560E0aED63D3bC2` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0x632C8C9275F67abc106b8d206560E0aED63D3bC2) |
-| **VIGILLedger** | `0xcafbDb017b081f1239E8F1ee10A39e7c1A70AF18` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0xcafbDb017b081f1239E8F1ee10A39e7c1A70AF18) |
-| **Identity Registry** | `0x5D1de28E6588915013c961279d0cB5e747364977` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0x5D1de28E6588915013c961279d0cB5e747364977) |
-| **Reputation Registry** | `0xbD38Ac2fD1Fc30eCC9Ebab88A4B76a77b8215002` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0xbD38Ac2fD1Fc30eCC9Ebab88A4B76a77b8215002) |
-| **Validation Registry** | `0x933a1c8F708Ea745362b9db38f612277Ac862F15` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0x933a1c8F708Ea745362b9db38f612277Ac862F15) |
+| **VIGILVault** | `0x4F1d65dAd79bF887776808B7c833a75dc198ADa6` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0x4F1d65dAd79bF887776808B7c833a75dc198ADa6) |
+| **VIGILLedger** | `0x3c4ce5558121607aea621Efa29ab428E98DD527B` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0x3c4ce5558121607aea621Efa29ab428E98DD527B) |
+| **Identity Registry** | `0x8004A818BFB912233c491871b3d84c89A494BD9e` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0x8004A818BFB912233c491871b3d84c89A494BD9e) |
+| **Reputation Registry** | `0x8004B663056A597Dffe9eCcC1965A193B7388713` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0x8004B663056A597Dffe9eCcC1965A193B7388713) |
+| **Validation Registry** | `0x8004Cb1BF31DAf7788923b405b754f57acEB4272` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0x8004Cb1BF31DAf7788923b405b754f57acEB4272) |
 
 ---
 

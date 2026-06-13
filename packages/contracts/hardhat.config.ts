@@ -41,6 +41,33 @@ const config: HardhatUserConfig = {
       gasPrice: "auto",
     },
   },
+  etherscan: {
+    apiKey: {
+      mantleSepolia: "PLACEHOLDER", // Mantlescan doesn't require a real API key
+      mantleMainnet: "PLACEHOLDER",
+    },
+    customChains: [
+      {
+        network: "mantleSepolia",
+        chainId: 5003,
+        urls: {
+          apiURL: "https://api-sepolia.mantlescan.xyz/api",
+          browserURL: "https://sepolia.mantlescan.xyz",
+        },
+      },
+      {
+        network: "mantleMainnet",
+        chainId: 5000,
+        urls: {
+          apiURL: "https://api.mantlescan.xyz/api",
+          browserURL: "https://mantlescan.xyz",
+        },
+      },
+    ],
+  },
+  sourcify: {
+    enabled: false, // using direct Mantlescan submission instead
+  },
   paths: {
     sources: "./src",
     tests: "./test",

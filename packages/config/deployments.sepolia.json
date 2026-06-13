@@ -4,10 +4,10 @@
   "rpc": "https://rpc.sepolia.mantle.xyz",
   "explorer": "https://sepolia.mantlescan.xyz",
   "contracts": {
-    "VIGILVault": "0x632C8C9275F67abc106b8d206560E0aED63D3bC2",
-    "VIGILLedger": "0xcafbDb017b081f1239E8F1ee10A39e7c1A70AF18",
-    "FluxionAdapter": "0xbaC4c20d7Bd6ae4e76ae27E57C28212972204110",
-    "SuperPortalAdapter": "0x85AFa13B8fe2f581687b16032751532fA8C3D1e8",
+    "VIGILVault": "0x4F1d65dAd79bF887776808B7c833a75dc198ADa6",
+    "VIGILLedger": "0x3c4ce5558121607aea621Efa29ab428E98DD527B",
+    "FluxionAdapter": "0x3426b6A86F4DF672B981368F38Cfc5C5Ac73B3AA",
+    "SuperPortalAdapter": "0x1E1A7Fe7F87633Df28ba86287a6744B8d3731033",
     "VIGILMockDEX": "0x5fb356f8EC0Fd5CBD0C215621655de7C5a640722"
   },
   "erc8004": {
