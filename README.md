@@ -70,9 +70,9 @@ Traditional equity markets close for **65 hours every weekend** (Friday 4pm → 
   │   65 HOURS — HUMAN TRADERS        │
   │        ARE LOCKED OUT             │
   │                                   │
-  │   VIGIL EXECUTED 5 DECISIONS      │
-  │   LOGGED 8 SKIPS WITH REASONING   │
-  │   GENERATED 13 ZK PROOFS          │
+  │   82 ON-CHAIN TRANSACTIONS CONFIRMED  │
+  │   41 AUTONOMOUS CYCLES EXECUTED       │
+  │   41 ZK PROOFS GENERATED              │
   └───────────────────────────────────┘
 ```
 
@@ -885,8 +885,8 @@ MIT © 2026 Samuel Dharshi
 ```
  ┌───────────────────────────────────────────────────────────────────┐
  │                                                                   │
- │   VIGIL has made 13 decisions since deployment.                  │
- │   5 executed. 8 skipped. All proved. All on-chain.               │
+ │   VIGIL has made 41 autonomous cycles since deployment.         │
+ │   82 on-chain transactions. All proved. All verifiable.         │
  │                                                                   │
  │   The market never sleeps.                                       │
  │   Neither does VIGIL.                                            │
