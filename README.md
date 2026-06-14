@@ -336,11 +336,23 @@ The dashboard console is designed to show the continuous cognitive state of the 
 
 | Contract | Address | Explorer Link |
 | :--- | :---: | :---: |
-| **VIGILVault** | `0x4F1d65dAd79bF887776808B7c833a75dc198ADa6` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0x4F1d65dAd79bF887776808B7c833a75dc198ADa6) |
-| **VIGILLedger** | `0x3c4ce5558121607aea621Efa29ab428E98DD527B` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0x3c4ce5558121607aea621Efa29ab428E98DD527B) |
+| **VIGILVault** ✅ Verified | `0x4F1d65dAd79bF887776808B7c833a75dc198ADa6` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0x4F1d65dAd79bF887776808B7c833a75dc198ADa6) |
+| **VIGILLedger** ✅ Verified | `0x3c4ce5558121607aea621Efa29ab428E98DD527B` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0x3c4ce5558121607aea621Efa29ab428E98DD527B) |
+| **FluxionAdapter** | `0xEEB25dabFa3F404D7d90e9fEBeB71abb467c110D` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0xEEB25dabFa3F404D7d90e9fEBeB71abb467c110D) |
+| **VIGILMockDEX** | `0x5fb356f8EC0Fd5CBD0C215621655de7C5a640722` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0x5fb356f8EC0Fd5CBD0C215621655de7C5a640722) |
 | **Identity Registry** | `0x8004A818BFB912233c491871b3d84c89A494BD9e` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0x8004A818BFB912233c491871b3d84c89A494BD9e) |
 | **Reputation Registry** | `0x8004B663056A597Dffe9eCcC1965A193B7388713` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0x8004B663056A597Dffe9eCcC1965A193B7388713) |
 | **Validation Registry** | `0x8004Cb1BF31DAf7788923b405b754f57acEB4272` | [View on Mantlescan](https://sepolia.mantlescan.xyz/address/0x8004Cb1BF31DAf7788923b405b754f57acEB4272) |
+
+### Live On-Chain Activity (Mantle Sepolia)
+| Metric | Value |
+| :--- | :---: |
+| **Total Ledger Entries** | 12 |
+| **EXECUTED trades** | 4 (real on-chain swaps via VIGILMockDEX) |
+| **SKIP decisions** | 8 (confidence below threshold) |
+| **Gas Reservoir** | 10.05 MNT |
+| **xStocks Trading** | Enabled |
+
 
 ---
 
