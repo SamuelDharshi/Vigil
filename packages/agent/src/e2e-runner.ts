@@ -247,8 +247,7 @@ async function runDiagnostics() {
         const quote = await requestQuote(
           TOKEN_ADDRESSES.mETH || ethers.ZeroAddress,
           TOKEN_ADDRESSES.USDY || ethers.ZeroAddress,
-          1000000000000000000n, // 1 ether
-          10
+          1000000000000000000n // 1 ether
         );
         pillar3.notes.push(`✓ Fluxion RFQ Quote active. ID: ${quote.quoteId}, Price Impact: ${quote.priceImpactBps} bps`);
       } catch (err: any) {

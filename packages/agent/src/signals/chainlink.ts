@@ -12,6 +12,42 @@ import {
 import { PythBundle } from "../types";
 
 /**
+ * Fetch real-time prices from CoinGecko free API.
+ * Used as fallback when Pyth Hermes is unavailable or returns stale data.
+ * No API key needed for basic price data.
+ */
+async function fetchCoinGeckoPrices(): Promise<Record<string, number>> {
+  try {
+    const resp = await axios.get(
+      "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,mantle,nvidia-tokenized-stock-defiverse,apple-tokenized-stock-defiverse,tesla-tokenized-stock-defiverse&vs_currencies=usd",
+      { timeout: 8000, headers: { Accept: "application/json" } }
+    );
+    const d = resp.data;
+    // CoinGecko doesn't have xStock feeds — use Yahoo Finance-like approximations
+    // These are the real underlying equity prices reflected in the xStock tokens
+    const prices: Record<string, number> = {};
+    if (d.ethereum?.usd)                          prices["ETH/USD"] = d.ethereum.usd;
+    if (d.mantle?.usd)                            prices["MNT/USD"] = d.mantle.usd;
+    // xStocks track real equity prices — fetch from separate endpoint
+    try {
+      const stockResp = await axios.get(
+        "https://api.coingecko.com/api/v3/simple/price?ids=nvidia-tokenized-stock-defiverse,apple-tokenized-stock-defiverse,tesla-tokenized-stock-defiverse&vs_currencies=usd",
+        { timeout: 5000 }
+      );
+      const s = stockResp.data;
+      if (s["nvidia-tokenized-stock-defiverse"]?.usd) prices["NVDA/USD"] = s["nvidia-tokenized-stock-defiverse"].usd;
+      if (s["apple-tokenized-stock-defiverse"]?.usd)  prices["AAPL/USD"] = s["apple-tokenized-stock-defiverse"].usd;
+      if (s["tesla-tokenized-stock-defiverse"]?.usd)  prices["TSLA/USD"] = s["tesla-tokenized-stock-defiverse"].usd;
+    } catch { /* xStock prices optional */ }
+    console.log("[CoinGecko] Live prices:", Object.entries(prices).map(([k, v]) => `${k}=$${v.toFixed(2)}`).join(", "));
+    return prices;
+  } catch (err: any) {
+    console.warn(`[CoinGecko] Price fetch failed: ${err.message}`);
+    return {};
+  }
+}
+
+/**
  * VIGIL Signal Layer — Pyth Network Price Oracle (Mantle Sepolia)
  *
  * Chainlink does NOT have price feeds on Mantle Sepolia.
@@ -139,8 +175,16 @@ export async function fetchPythBundle(): Promise<PythBundle> {
     }
   } catch (err: any) {
     console.error(`[Pyth] Hermes fetch failed: ${err.message}`);
-    console.error("[Pyth] Verify PYTH_HERMES_URL is reachable and price IDs are correct");
-    // Return empty bundle — engine will reduce confidence on missing prices
+    console.warn("[Pyth] Falling back to CoinGecko for real market prices...");
+    // Fallback to CoinGecko — always returns real prices
+    const cgPrices = await fetchCoinGeckoPrices();
+    for (const [k, v] of Object.entries(cgPrices)) {
+      prices[k] = v;
+      publishTimes[k] = Math.floor(Date.now() / 1000); // fresh
+    }
+    if (Object.keys(prices).length > 0) {
+      console.log("[CoinGecko] Using live prices as Pyth fallback:", prices);
+    }
   }
 
   let mEthApr = 0;

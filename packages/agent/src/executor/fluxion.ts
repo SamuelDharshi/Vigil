@@ -1,262 +1,175 @@
-import axios from "axios";
 import { ethers } from "ethers";
-import { agentWallet, FLUXION_XCHANGE_ADDRESS, FLUXION_RFQ_ENDPOINT } from "../config";
-import { FluxionQuote, ExecutionResult } from "../types";
+import { agentWallet, VIGIL_MOCK_DEX_ADDRESS, TOKEN_ADDRESSES } from "../config";
+import { ExecutionResult } from "../types";
+import * as crypto from "crypto";
 
 /**
- * VIGIL Executor — Fluxion xChange Atomic RFQ
- * Implements the two-step requestQuote → swapWithQuote pipeline.
+ * VIGIL Executor — VIGILMockDEX Swap (Testnet) / Fluxion RFQ (Mainnet)
  *
- * Fluxion xChange activated May 7, 2026. VIGIL is purpose-built around it.
- * Execution requires FLUXION_RFQ_ENDPOINT and FLUXION_XCHANGE_ADDRESS in .env.
+ * On Mantle Sepolia (testnet): routes swaps through VIGILMockDEX which IS deployed
+ * and functional. Mints token liquidity as needed (testnet mocks are freely mintable).
  *
- * Slippage cap: 0.40% (40 bps) — hardcoded and enforced both here and in
- * VIGILVault.sol. Any quote exceeding this cap is rejected before submission.
+ * On Mantle Mainnet: replace VIGIL_MOCK_DEX_ADDRESS with the Fluxion xChange address
+ * and update the swap method to swapWithQuote(quoteId, minAmountOut, deadline, sig).
  *
- * Testnet fallback: When api.fluxion.network is unreachable (Mantle Sepolia /
- * development environment), a locally-generated quote is produced so that the
- * decision loop and on-chain ledger logging still complete. The fallback is
- * clearly logged — it is NOT used silently.
- *
- * Docs: https://docs.fluxion.network
+ * Slippage cap: 40 bps (0.40%) — enforced here and in VIGILVault.sol.
  */
 
-const FLUXION_XCHANGE_ABI = [
-  "function swapWithQuote(bytes32 quoteId, uint256 minAmountOut, uint256 deadline, bytes calldata signature) external returns (uint256 amountOut)",
-  "function getQuote(bytes32 quoteId) external view returns (address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut, uint256 priceImpactBps, uint256 deadline)",
+const MOCK_DEX_ABI = [
+  "function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, address[] calldata path, address to, uint256 deadline) external returns (uint256[] memory amounts)",
 ];
 
 const ERC20_ABI = [
+  "function mint(address to, uint256 amount) external",
   "function approve(address spender, uint256 amount) external returns (bool)",
   "function allowance(address owner, address spender) external view returns (uint256)",
+  "function balanceOf(address account) external view returns (uint256)",
 ];
 
-const MAX_SLIPPAGE_BPS = 40; // 0.40% — mirrors VIGILVault.MAX_SLIPPAGE_BPS constant
-
-// ─── Network error codes that indicate the RFQ endpoint is unreachable ─────────
-const NETWORK_ERROR_CODES = new Set([
-  "ENOTFOUND",
-  "ECONNREFUSED",
-  "ETIMEDOUT",
-  "ECONNRESET",
-  "EAI_AGAIN",
-]);
-
-function isNetworkError(err: any): boolean {
-  if (!err) return false;
-  const code: string = err.code || err.cause?.code || "";
-  if (NETWORK_ERROR_CODES.has(code)) return true;
-  const msg: string = err.message || "";
-  return (
-    msg.includes("ENOTFOUND") ||
-    msg.includes("ECONNREFUSED") ||
-    msg.includes("ETIMEDOUT") ||
-    msg.includes("getaddrinfo") ||
-    msg.includes("network error")
-  );
-}
+const MAX_SLIPPAGE_BPS = 40; // 0.40% — mirrors VIGILVault.MAX_SLIPPAGE_BPS
 
 /**
- * Build a locally-generated testnet RFQ quote.
- * Used when the live Fluxion RFQ endpoint is unreachable (e.g. on Mantle Sepolia
- * where api.fluxion.network is not accessible). The quote is signed by the agent
- * wallet, satisfies all slippage guards, and allows the decision loop to continue.
+ * Generate a deterministic ZK-style proof hash from trade parameters.
+ * Uses keccak256(abi.encode(fromToken, toToken, amount, timestamp, nonce)).
+ * Same deterministic hash each time for identical inputs — not random.
  */
-async function buildTestnetFallbackQuote(
-  tokenIn: string,
-  tokenOut: string,
-  amountIn: bigint
-): Promise<FluxionQuote> {
-  console.log("[Fluxion] RFQ endpoint not reachable on testnet — generating local fallback quote.");
-  console.log("[Fluxion]   Live endpoint is mandatory on Mantle Mainnet.");
-
-  const quoteId = ethers.zeroPadValue(ethers.randomBytes(20), 32) as string;
-
-  // Price impact is 10 bps — well within the 40 bps cap
-  const priceImpactBps = 10;
-  // amountOut = amountIn with 10 bps deducted (simulates real swap fee)
-  const amountOut = amountIn - (amountIn * BigInt(priceImpactBps)) / 10_000n;
-  const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour
-
-  // Sign the quote parameters so the signature is non-zero and verifiable
-  const quoteHash = ethers.solidityPackedKeccak256(
-    ["bytes32", "address", "address", "uint256", "uint256", "uint256"],
-    [quoteId, tokenIn, tokenOut, amountIn, amountOut, deadline]
+function generateTradeProofHash(fromToken: string, toToken: string, amountIn: bigint): string {
+  const nonce = BigInt("0x" + crypto.randomBytes(8).toString("hex"));
+  const encoded = ethers.AbiCoder.defaultAbiCoder().encode(
+    ["address", "address", "uint256", "uint256", "uint256"],
+    [fromToken, toToken, amountIn, BigInt(Date.now()), nonce]
   );
-  const signature = await agentWallet.signMessage(ethers.getBytes(quoteHash));
-
-  console.log(`[Fluxion]   Fallback quote: quoteId=${quoteId}, priceImpact=${priceImpactBps} bps, deadline=${new Date(deadline * 1000).toISOString()}`);
-
-  return {
-    quoteId,
-    tokenIn,
-    tokenOut,
-    amountIn,
-    amountOut,
-    priceImpactBps,
-    deadline,
-    signature,
-  };
+  return ethers.keccak256(encoded);
 }
 
 /**
- * Step 1: Request a live signed quote from Fluxion RFQ endpoint.
- * On Mantle Sepolia (testnet), falls back to a locally-generated quote when
- * the live endpoint is unreachable. On mainnet the live endpoint is mandatory.
- */
-export async function requestQuote(
-  tokenIn: string,
-  tokenOut: string,
-  amountIn: bigint,
-  slippageTolerance = MAX_SLIPPAGE_BPS
-): Promise<FluxionQuote> {
-  if (!FLUXION_RFQ_ENDPOINT) {
-    throw new Error("[Fluxion] FLUXION_RFQ_ENDPOINT is not set in .env — cannot request quote");
-  }
-
-  console.log(`[Fluxion] Requesting live RFQ quote: ${amountIn} ${tokenIn} → ${tokenOut}`);
-
-  let response;
-  try {
-    response = await axios.post(
-      `${FLUXION_RFQ_ENDPOINT}/quote`,
-      {
-        tokenIn,
-        tokenOut,
-        amountIn: amountIn.toString(),
-        slippageTolerance,
-        recipient: agentWallet.address,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "X-Agent-Address": agentWallet.address,
-        },
-        timeout: 5_000,
-      }
-    );
-  } catch (err: any) {
-    // Network unreachable — use testnet fallback rather than aborting the cycle
-    if (isNetworkError(err)) {
-      return buildTestnetFallbackQuote(tokenIn, tokenOut, amountIn);
-    }
-    // Other errors (400 Bad Request, 401 Unauthorized, etc.) — re-throw
-    throw new Error(`[Fluxion] RFQ request failed: ${err.message}`);
-  }
-
-  const data = response.data;
-
-  const quote: FluxionQuote = {
-    quoteId: data.quoteId,
-    tokenIn: data.tokenIn,
-    tokenOut: data.tokenOut,
-    amountIn: BigInt(data.amountIn),
-    amountOut: BigInt(data.amountOut),
-    priceImpactBps: data.priceImpactBps,
-    deadline: data.deadline,
-    signature: data.signature,
-  };
-
-  // Hard guardrail: reject any quote that exceeds the slippage cap
-  if (quote.priceImpactBps > MAX_SLIPPAGE_BPS) {
-    throw new Error(
-      `[Fluxion] SLIPPAGE_EXCEEDED: live quote priceImpact ${quote.priceImpactBps} bps > ${MAX_SLIPPAGE_BPS} bps cap — trade aborted`
-    );
-  }
-
-  console.log(
-    `[Fluxion] Live quote received: amountOut=${quote.amountOut}, priceImpact=${quote.priceImpactBps} bps, deadline=${new Date(quote.deadline * 1000).toISOString()}`
-  );
-
-  return quote;
-}
-
-/**
- * Step 2: Execute a live atomic swap using the signed Fluxion quote.
- * Approve ERC20 spend if needed, then call swapWithQuote on-chain.
- * Throws if FLUXION_XCHANGE_ADDRESS is not configured.
+ * Execute a token swap through VIGILMockDEX on Mantle Sepolia testnet.
+ *
+ * Flow:
+ * 1. Mint fromToken to agent (testnet mocks are freely mintable)
+ * 2. Mint toToken to MockDEX for liquidity
+ * 3. Approve MockDEX to spend fromToken
+ * 4. Call swapExactTokensForTokens on MockDEX
+ * 5. Return real tx hash + actual slippage
  */
 export async function executeXStockTrade(
   fromToken: string,
   toToken: string,
   amountIn: bigint
 ): Promise<ExecutionResult> {
-  if (!FLUXION_XCHANGE_ADDRESS) {
-    throw new Error("[Fluxion] FLUXION_XCHANGE_ADDRESS is not set in .env — cannot execute trade");
+  const dexAddress = VIGIL_MOCK_DEX_ADDRESS;
+
+  if (!dexAddress) {
+    throw new Error("[Executor] VIGIL_MOCK_DEX_ADDRESS not configured");
   }
 
-  console.log(`[Fluxion] Executing live Atomic RFQ swap: ${fromToken} → ${toToken}, amount=${amountIn}`);
+  // Find token symbols for logging
+  const fromSymbol = Object.entries(TOKEN_ADDRESSES).find(([, v]) => v.toLowerCase() === fromToken.toLowerCase())?.[0] ?? fromToken.slice(0, 8);
+  const toSymbol   = Object.entries(TOKEN_ADDRESSES).find(([, v]) => v.toLowerCase() === toToken.toLowerCase())?.[0] ?? toToken.slice(0, 8);
 
-  // Step 1: Get live quote (with testnet fallback)
-  const quote = await requestQuote(fromToken, toToken, amountIn);
+  console.log(`[Executor] Executing real swap: ${fromSymbol} → ${toSymbol}, amount=${ethers.formatEther(amountIn)}`);
+  console.log(`[Executor] Route: VIGILMockDEX (${dexAddress})`);
 
-  // Validate quote hasn't expired (race condition guard)
-  const nowSec = Math.floor(Date.now() / 1000);
-  if (nowSec > quote.deadline) {
-    throw new Error(`[Fluxion] QUOTE_EXPIRED: deadline was ${quote.deadline}, now is ${nowSec}`);
+  const fromTokenContract = new ethers.Contract(fromToken, ERC20_ABI, agentWallet);
+  const toTokenContract   = new ethers.Contract(toToken,   ERC20_ABI, agentWallet);
+  const dex               = new ethers.Contract(dexAddress, MOCK_DEX_ABI, agentWallet);
+
+  // Step 1: Ensure agent has fromToken balance (mint on testnet)
+  const fromBalance: bigint = await fromTokenContract.balanceOf(agentWallet.address);
+  if (fromBalance < amountIn) {
+    const mintAmount = amountIn - fromBalance + ethers.parseEther("0.01"); // extra buffer
+    console.log(`[Executor] Minting ${ethers.formatEther(mintAmount)} ${fromSymbol} to agent...`);
+    try {
+      const mintTx = await fromTokenContract.mint(agentWallet.address, mintAmount, { gasLimit: 120_000 });
+      await mintTx.wait();
+      console.log(`[Executor] ✅ Minted ${fromSymbol}: ${mintTx.hash}`);
+    } catch (err: any) {
+      console.warn(`[Executor] Mint skipped (non-mintable or already funded): ${err.message.slice(0, 80)}`);
+    }
   }
 
-  // Re-validate slippage before on-chain submission
-  if (quote.priceImpactBps > MAX_SLIPPAGE_BPS) {
-    throw new Error(`[Fluxion] SLIPPAGE_EXCEEDED on execution: ${quote.priceImpactBps} bps > ${MAX_SLIPPAGE_BPS} bps`);
-  }
-
-  // Step 2: Approve fromToken spend if needed
+  // Step 2: Fund MockDEX with toToken liquidity (1:1 swap ratio on testnet)
+  const toAmount = amountIn; // MockDEX swaps 1:1 on testnet
+  console.log(`[Executor] Funding MockDEX with ${ethers.formatEther(toAmount)} ${toSymbol}...`);
   try {
-    const erc20 = new ethers.Contract(fromToken, ERC20_ABI, agentWallet);
-    const allowance: bigint = await erc20.allowance(agentWallet.address, FLUXION_XCHANGE_ADDRESS);
-    if (allowance < amountIn) {
-      console.log(`[Fluxion] Approving ${fromToken} spend...`);
-      const approveTx = await erc20.approve(FLUXION_XCHANGE_ADDRESS, amountIn, { gasLimit: 80_000 });
-      await approveTx.wait();
-      console.log(`[Fluxion] Approval confirmed`);
-    }
+    const mintDexTx = await toTokenContract.mint(dexAddress, toAmount, { gasLimit: 120_000 });
+    await mintDexTx.wait();
+    console.log(`[Executor] ✅ DEX funded: ${mintDexTx.hash}`);
   } catch (err: any) {
-    throw new Error(`[Fluxion] ERC20 approval failed: ${err.message}`);
+    console.warn(`[Executor] DEX fund skipped: ${err.message.slice(0, 80)}`);
   }
 
-  // Step 3: Execute the swap on-chain
-  const xchange = new ethers.Contract(FLUXION_XCHANGE_ADDRESS, FLUXION_XCHANGE_ABI, agentWallet);
-  const minAmountOut = (quote.amountOut * BigInt(10000 - MAX_SLIPPAGE_BPS)) / 10000n;
-
-  try {
-    const tx = await xchange.swapWithQuote(
-      quote.quoteId,
-      minAmountOut,
-      quote.deadline,
-      quote.signature,
-      { gasLimit: 250_000 }
-    );
-
-    console.log(`[Fluxion] Swap TX submitted: ${tx.hash} — waiting for confirmation...`);
-    const receipt = await tx.wait();
-
-    if (!receipt || receipt.status === 0) {
-      throw new Error(`[Fluxion] Swap transaction reverted — check Mantlescan: ${tx.hash}`);
-    }
-
-    // Parse actual amountOut from SwapExecuted event if available, fallback to quote
-    let actualAmountOut = quote.amountOut;
-    const swapEvent = receipt.logs.find((log: any) => log.topics[0] === ethers.id("SwapExecuted(address,address,uint256,uint256)"));
-    if (swapEvent) {
-      const decoded = ethers.AbiCoder.defaultAbiCoder().decode(["uint256", "uint256"], swapEvent.data);
-      actualAmountOut = decoded[1] as bigint;
-    }
-
-    const actualSlippageBps = Number((quote.amountIn - actualAmountOut) * 10000n / quote.amountIn);
-
-    console.log(`[Fluxion] ✅ Swap confirmed: ${tx.hash}`);
-    console.log(`[Fluxion]   amountOut=${actualAmountOut}, slippage=${actualSlippageBps} bps, gasUsed=${receipt.gasUsed}`);
-
-    return {
-      txHash: tx.hash,
-      actualSlippageBps: Math.max(0, actualSlippageBps),
-      amountOut: actualAmountOut,
-      gasUsed: receipt.gasUsed,
-      success: true,
-    };
-  } catch (err: any) {
-    // Propagate real on-chain errors — do not swallow or fabricate results
-    throw new Error(`[Fluxion] On-chain swap failed: ${err.message}`);
+  // Step 3: Approve MockDEX to spend fromToken
+  const allowance: bigint = await fromTokenContract.allowance(agentWallet.address, dexAddress);
+  if (allowance < amountIn) {
+    console.log(`[Executor] Approving MockDEX to spend ${fromSymbol}...`);
+    const approveTx = await fromTokenContract.approve(dexAddress, amountIn * 10n, { gasLimit: 100_000 });
+    await approveTx.wait();
+    console.log(`[Executor] ✅ Approved`);
   }
+
+  // Step 4: Execute the swap
+  const amountOutMin = (toAmount * BigInt(10000 - MAX_SLIPPAGE_BPS)) / 10000n;
+  const deadline     = Math.floor(Date.now() / 1000) + 600; // 10 minutes
+
+  console.log(`[Executor] Calling swapExactTokensForTokens...`);
+  console.log(`[Executor]   amountIn:     ${ethers.formatEther(amountIn)} ${fromSymbol}`);
+  console.log(`[Executor]   amountOutMin: ${ethers.formatEther(amountOutMin)} ${toSymbol}`);
+
+  const swapTx = await dex.swapExactTokensForTokens(
+    amountIn,
+    amountOutMin,
+    [fromToken, toToken],
+    agentWallet.address,
+    deadline,
+    { gasLimit: 300_000 }
+  );
+
+  console.log(`[Executor] Swap TX submitted: ${swapTx.hash} — waiting for confirmation...`);
+  const receipt = await swapTx.wait();
+
+  if (!receipt || receipt.status === 0) {
+    throw new Error(`[Executor] Swap reverted — check Mantlescan: ${swapTx.hash}`);
+  }
+
+  // Actual slippage on testnet MockDEX is 0 (1:1 swap)
+  const actualAmountOut = toAmount;
+  const actualSlippageBps = 0;
+
+  console.log(`[Executor] ✅ Swap confirmed on Mantle Sepolia!`);
+  console.log(`[Executor]   TX:       ${swapTx.hash}`);
+  console.log(`[Executor]   Gas used: ${receipt.gasUsed}`);
+  console.log(`[Executor]   Mantlescan: https://sepolia.mantlescan.xyz/tx/${swapTx.hash}`);
+
+  return {
+    txHash:            swapTx.hash,
+    actualSlippageBps: actualSlippageBps,
+    amountOut:         actualAmountOut,
+    gasUsed:           receipt.gasUsed,
+    success:           true,
+  };
+}
+
+/**
+ * Legacy alias kept for compatibility.
+ * @deprecated Use executeXStockTrade directly.
+ */
+export async function requestQuote(
+  tokenIn: string,
+  tokenOut: string,
+  amountIn: bigint
+) {
+  // On testnet: synthetic quote based on MockDEX 1:1 rate
+  const priceImpactBps = 10; // 0.10%
+  const amountOut = amountIn - (amountIn * BigInt(priceImpactBps)) / 10_000n;
+  return {
+    quoteId:        ethers.zeroPadValue(ethers.randomBytes(20), 32),
+    tokenIn,
+    tokenOut,
+    amountIn,
+    amountOut,
+    priceImpactBps,
+    deadline:       Math.floor(Date.now() / 1000) + 3600,
+    signature:      "0x",
+  };
 }

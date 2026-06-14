@@ -112,7 +112,7 @@ export const GUARDRAILS = {
 } as const;
 
 // ─── Cron Schedule ────────────────────────────────────────────────────────────
-export const CRON_SCHEDULE = "*/30 * * * *"; // Every 30 minutes
+export const CRON_SCHEDULE = process.env.CRON_SCHEDULE || "*/5 * * * *"; // Every 5 minutes (demo mode)
 
 // ─── Circuit Paths ────────────────────────────────────────────────────────────
 export const CIRCUIT_WASM_PATH = path.join(__dirname, "../circuits/vigil_rebalance_js/vigil_rebalance.wasm");
