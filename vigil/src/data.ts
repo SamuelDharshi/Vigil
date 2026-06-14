@@ -54,7 +54,7 @@ export const INITIAL_SIGNALS: SignalItem[] = [
   {
     id: 'sig-001',
     timestamp: '08:05:12 UTC',
-    source: 'CHAINLINK',
+    source: 'PYTH',
     description: 'mETH yield oracle reports staking APR increase to 3.84% (+0.08% deviation).',
     status: 'WATCHING',
     weight: 0.38,
@@ -90,7 +90,7 @@ export const INITIAL_SIGNALS: SignalItem[] = [
   {
     id: 'sig-005',
     timestamp: '06:50:22 UTC',
-    source: 'CHAINLINK',
+    source: 'PYTH',
     description: 'NASDAQ aftermarket reports Apple Inc. major compliance milestone. AAPLx price adjustment imminent.',
     status: 'WATCHING',
     weight: 0.52,

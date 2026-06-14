@@ -61,6 +61,42 @@ export default function App() {
     setShowSpawn(false);
   };
 
+  const [marketOpen, setMarketOpen] = useState(true);
+
+  useEffect(() => {
+    const checkMarket = () => {
+      const stored = localStorage.getItem('vigil_demo_force_open');
+      const isForced = stored === null ? true : stored === 'true';
+      if (isForced) {
+        setMarketOpen(true);
+        return;
+      }
+      
+      const now = new Date();
+      const yr = now.getUTCFullYear();
+      const dstStart = new Date(Date.UTC(yr, 2, 8 - (new Date(Date.UTC(yr, 2, 1)).getUTCDay() + 6) % 7 + (new Date(Date.UTC(yr, 2, 1)).getUTCDay() === 0 ? 7 : 0), 7));
+      const dstEnd   = new Date(Date.UTC(yr, 10, 1 + (7 - new Date(Date.UTC(yr, 10, 1)).getUTCDay()) % 7, 6));
+      const offset = now >= dstStart && now < dstEnd ? 4 : 5;
+      const nyc = new Date(now.getTime() - offset * 3_600_000);
+      const day = nyc.getUTCDay();
+      const isWeekday = day >= 1 && day <= 5;
+      if (!isWeekday) {
+        setMarketOpen(false);
+        return;
+      }
+      const hr = nyc.getUTCHours();
+      const min = nyc.getUTCMinutes();
+      const currentMinutes = hr * 60 + min;
+      const startMinutes = 9 * 60 + 30;
+      const endMinutes = 16 * 60;
+      setMarketOpen(currentMinutes >= startMinutes && currentMinutes < endMinutes);
+    };
+
+    checkMarket();
+    const interval = setInterval(checkMarket, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div id="vigil-root-container" className="relative min-h-screen bg-[#020202] overflow-x-hidden selection:bg-[#00FF7F]/30 selection:text-white transition-colors duration-300">
       
@@ -180,6 +216,15 @@ export default function App() {
                 
 
 
+                {/* Turing Test badge */}
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-widest px-3 py-1 border border-[#00FF7F]/30 bg-[#00FF7F]/5 text-[#00FF7F] rounded-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#00FF7F] animate-pulse" />
+                    Mantle Turing Test — AI × RWA Track
+                  </span>
+                  <span className="text-[10px] font-mono text-gray-600 uppercase tracking-widest">ERC-8004 Agent</span>
+                </div>
+
                 <h1 className="font-sans text-4xl md:text-6xl lg:text-7xl leading-[0.9] font-black tracking-tighter neon-text uppercase text-white">
                   THE MARKET<br />
                   NEVER <span className="text-transparent text-stroke-neon">SLEEPS.</span><br />
@@ -187,7 +232,7 @@ export default function App() {
                 </h1>
 
                 <p className="font-sans text-sm md:text-base text-gray-400 max-w-xl leading-relaxed font-light">
-                  An autonomous portfolio sentinel continuously optimizing yields across mETH, stable treasury rates, and tokenized equities on Mantle.
+                  A <span className="text-white font-semibold">glass-box autonomous agent</span> on Mantle Sepolia — every decision ZK-proved, ERC-8004 identity-stamped, and permanently benchmarked on-chain. While NYSE sleeps, VIGIL executes.
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-4 justify-start items-center pt-2">
@@ -210,15 +255,22 @@ export default function App() {
                   </a>
                 </div>
 
-                {/* Clock indicator inside landing */}
-                <div className="pt-4 max-w-md">
-                  <div className="p-3 bg-white/5 border border-white/10 rounded-lg font-mono text-[10px] md:text-xs text-gray-400 flex items-center justify-start gap-3">
-                    <span>NYSE / NASDAQ: <span className="text-[#ff0055]">CLOSED</span></span>
+                {/* Clock indicator + Turing Test proof bar */}
+                <div className="pt-2 max-w-lg space-y-2">
+                  <div className="p-3 bg-white/5 border border-white/10 rounded-lg font-mono text-[10px] md:text-xs text-gray-400 flex items-center justify-start gap-3 flex-wrap">
+                    <span>NYSE / NASDAQ: {marketOpen ? <span className="text-[#00FF7F] font-bold">OPEN</span> : <span className="text-[#ff0055]">CLOSED</span>}</span>
                     <span className="text-gray-700">|</span>
                     <span className="flex items-center gap-1.5 text-[#00FF7F]">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#00FF7F] animate-ping" />
                       VIGIL ALIVE (24/7 ACTIVE)
                     </span>
+                    <span className="text-gray-700">|</span>
+                    <span className="text-[#d000ff]">ERC-8004 #1 · Rep: 102.1</span>
+                  </div>
+                  <div className="p-2.5 bg-black/60 border border-[#00FF7F]/15 rounded-lg font-mono text-[9px] text-gray-500 flex items-center gap-2">
+                    <span className="text-[#00FF7F] shrink-0">⚡ LAST PROOF</span>
+                    <span className="text-gray-600 truncate">TX 0x5bafb36ee8...ca6c1 · Mantle Block 39940116 · ZK ✓ · IPFS ✓</span>
+                    <a href="https://sepolia.mantlescan.xyz/tx/0x5bafb36ee8d6bb4e947238b5a20a3507b43fecc48838909d3b2b71fbeb4ca6c1" target="_blank" rel="noreferrer" className="text-[#00FF7F] shrink-0 hover:underline">↗</a>
                   </div>
                 </div>
 

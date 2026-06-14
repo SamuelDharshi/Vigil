@@ -217,17 +217,17 @@ export default function ProofModal({ decision, onClose }: ProofModalProps) {
                       <ExternalLink className="w-3 h-3 text-gray-500 group-hover:text-[#00FF7F] transition-colors" />
                     </a>
                   </div>
-                  <div className="flex items-center justify-between p-2.5 bg-black border border-white/10 rounded-sm text-xs font-mono hover:border-[#d000ff]/30 transition-colors">
-                    <span className="text-gray-500">Validation Registry:</span>
+                  <div className="flex items-center justify-between p-2.5 bg-black border border-white/10 rounded-sm text-xs font-mono hover:border-[#00FF7F]/30 transition-colors">
+                    <span className="text-gray-500">ZK Proof Log (VIGILLedger):</span>
                     <a
-                      href="https://sepolia.mantlescan.xyz/address/0x8004Cb1BF31DAf7788923b405b754f57acEB4272"
+                      href="https://sepolia.mantlescan.xyz/address/0x3c4ce5558121607aea621Efa29ab428E98DD527B"
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[#d000ff] hover:text-white flex items-center gap-1.5 transition-colors group"
-                      title="ERC-8004 Validation Registry on Mantle Sepolia"
+                      className="text-[#00FF7F] hover:text-white flex items-center gap-1.5 transition-colors group"
+                      title="VIGILLedger — on-chain ZK proof & decision log on Mantle Sepolia"
                     >
-                      0x8004Cb1B...4272
-                      <ExternalLink className="w-3 h-3 text-gray-500 group-hover:text-[#d000ff] transition-colors" />
+                      0x3c4ce555...DD527B
+                      <ExternalLink className="w-3 h-3 text-gray-500 group-hover:text-[#00FF7F] transition-colors" />
                     </a>
                   </div>
                 </div>

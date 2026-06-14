@@ -50,7 +50,7 @@ import {
   CIRCUIT_ZKEY_PATH,
 } from "./config";
 
-import { fetchPythBundle } from "./signals/chainlink";
+import { fetchPythBundle } from "./signals/pyth";
 import { fetchNansenBundle } from "./signals/nansen";
 import { fetchElfaBundle } from "./signals/elfa";
 import { aggregateSignals } from "./signals/aggregator";

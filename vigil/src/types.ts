@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type SignalSource = 'CHAINLINK' | 'NANSEN' | 'ELFA' | 'MANTLE';
+export type SignalSource = 'PYTH' | 'NANSEN' | 'ELFA' | 'MANTLE';
 export type SignalStatus = 'ACTED' | 'SKIPPED' | 'WATCHING';
 
 export interface SignalItem {

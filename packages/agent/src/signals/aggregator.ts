@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { v4 as uuidv4 } from "uuid";
-import { fetchPythBundle, fetchVaultAllocation } from "./chainlink";
+import { fetchPythBundle, fetchVaultAllocation } from "./pyth";
 import { fetchNansenBundle } from "./nansen";
 import { fetchElfaBundle } from "./elfa";
 import { provider, VIGIL_VAULT_ADDRESS } from "../config";

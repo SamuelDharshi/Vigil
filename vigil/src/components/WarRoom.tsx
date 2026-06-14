@@ -98,11 +98,11 @@ export default function WarRoom({ walletAddress, agentId, volatility, onVolatili
     if (pipelineActive) return;
     setPipelineActive(true);
     setPipelineStage(1);
-    setPipelineDetail('Aggregating Chainlink + Nansen + Elfa signal data sets...');
+    setPipelineDetail('Aggregating Pyth + Nansen + Elfa signal data sets...');
 
     // Stage 1: Intake (approx 1.5s)
     await delay(1500);
-    const sourceOptions: Array<'CHAINLINK' | 'NANSEN' | 'ELFA' | 'MANTLE'> = ['NANSEN', 'ELFA', 'CHAINLINK', 'MANTLE'];
+    const sourceOptions: Array<'PYTH' | 'NANSEN' | 'ELFA' | 'MANTLE'> = ['NANSEN', 'ELFA', 'PYTH', 'MANTLE'];
     const chosenSys = sourceOptions[Math.floor(Math.random() * sourceOptions.length)];
     const timestampStr = new Date().toISOString().substring(11, 19) + ' UTC';
     const wt = Number((0.4 + Math.random() * 0.5).toFixed(2));
@@ -121,7 +121,7 @@ export default function WarRoom({ walletAddress, agentId, volatility, onVolatili
       details = { volumeMetric: 'High', sentimentDelta: `${isUp ? '+' : '-'}${sent}%` };
     } else {
       const yieldDiff = (3.5 + Math.random() * 2).toFixed(2);
-      descriptionText = `Chainlink functions confirm USDY treasury premium of ${yieldDiff}% is stable compared to ETH volatility.`;
+      descriptionText = `Pyth oracle confirms USDY treasury premium of ${yieldDiff}% is stable compared to ETH volatility.`;
       details = { stabilityCoefficient: '0.85', currentYield: `${yieldDiff}%` };
     }
 
@@ -261,8 +261,25 @@ export default function WarRoom({ walletAddress, agentId, volatility, onVolatili
   return (
     <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-6 font-sans text-gray-200 min-h-screen relative z-10">
       
+      {/* ERC-8004 Identity Banner */}
+      <div className="mt-20 mb-4 p-3 bg-black/80 border border-[#d000ff]/20 rounded-sm flex items-center gap-4 flex-wrap font-mono text-[10px]">
+        <span className="flex items-center gap-1.5 text-[#d000ff] font-bold uppercase tracking-widest">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#d000ff] animate-pulse" />
+          ERC-8004 Agent Identity
+        </span>
+        <span className="text-gray-500">ID: <span className="text-white">#1</span></span>
+        <span className="text-gray-500">Wallet: <span className="text-gray-300">0x3Ba855...946074</span></span>
+        <span className="text-gray-500">Reputation: <span className="text-[#00FF7F] font-bold">102.1</span></span>
+        <span className="text-gray-500">Cycles: <span className="text-white">13</span></span>
+        <span className="text-gray-500">EXECUTED: <span className="text-[#00FF7F]">5</span></span>
+        <span className="text-gray-500">SKIPPED: <span className="text-yellow-400">8</span></span>
+        <a href="https://sepolia.mantlescan.xyz/address/0x8004A818BFB912233c491871b3d84c89A494BD9e" target="_blank" rel="noreferrer" className="ml-auto text-[#d000ff] hover:underline uppercase tracking-widest">Identity Registry ↗</a>
+        <a href="https://sepolia.mantlescan.xyz/address/0x8004B663056A597Dffe9eCcC1965A193B7388713" target="_blank" rel="noreferrer" className="text-[#d000ff] hover:underline uppercase tracking-widest">Reputation ↗</a>
+        <a href="https://sepolia.mantlescan.xyz/address/0x3c4ce5558121607aea621Efa29ab428E98DD527B" target="_blank" rel="noreferrer" className="text-[#00FF7F] hover:underline uppercase tracking-widest">VIGILLedger (ZK Proofs) ↗</a>
+      </div>
+
       {/* Dynamic Upper Controls Section */}
-      <div id="deck-stats-control" className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 mt-20">
+      <div id="deck-stats-control" className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         
         {/* Ticker rates block */}
         <div className="md:col-span-2 bg-[#020202]/95 border border-white/10 rounded-sm p-4 flex flex-col justify-between backdrop-blur-md">
@@ -340,7 +357,7 @@ export default function WarRoom({ walletAddress, agentId, volatility, onVolatili
             />
           </div>
           <p className="text-[9px] font-mono text-gray-500 leading-relaxed uppercase mt-2">
-            Adjusting volatility immediately shifts WebGL background matrix acceleration speed & price spreads.
+            Adjusting volatility immediately shifts Three.js background animation speed & price spread simulation.
           </p>
         </div>
 
@@ -367,7 +384,7 @@ export default function WarRoom({ walletAddress, agentId, volatility, onVolatili
               >
                 <div className="flex justify-between items-center mb-1.5">
                   <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-sm border ${
-                    sig.source === 'CHAINLINK' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                    sig.source === 'PYTH' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
                     sig.source === 'NANSEN' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
                     sig.source === 'ELFA' ? 'bg-pink-500/10 text-pink-400 border-pink-500/20' :
                     'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
