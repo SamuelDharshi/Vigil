@@ -56,9 +56,10 @@ const isMarketOpen = (market: 'NYSE' | 'NASDAQ' | 'LSE' | 'TSE', now: Date) => {
 export default function MarketClock() {
   const [forceOpen, setForceOpen] = useState(() => {
     try {
-      return localStorage.getItem('vigil_demo_force_open') === 'true';
+      const stored = localStorage.getItem('vigil_demo_force_open');
+      return stored === null ? true : stored === 'true';
     } catch {
-      return false;
+      return true;
     }
   });
 
