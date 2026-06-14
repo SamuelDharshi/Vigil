@@ -551,25 +551,37 @@ vigil/
   │  Agent Wallet:       0x3Ba85544C7a5C386AE7Cf753e887FB05Ac946074│
   │  Reputation Score:   102.1 (live, grows each cycle)            │
   │                                                                 │
-  │  Total Cycles:       13                                         │
-  │  EXECUTED:            5  ████████░░░░░░░░░░░░ 38%              │
-  │  SKIPPED:             8  ████████████░░░░░░░░ 62%              │
+  │  Total On-Chain Txs: 82                                         │
+  │    Execute Rebalance: 41  ████████████████████ 50%              │
+  │    Fund Gas Reservoir: 41  ████████████████████ 50%             │
   │                                                                 │
-  │  (A 62% skip rate shows the agent is conservative —            │
-  │   it only acts when confident. That IS intelligence.)          │
+  │  (Every cycle = 1 Execute Rebalance + 1 Fund Gas Reservoir     │
+  │   = 2 on-chain txs. 82 txs = ~41 autonomous cycles)            │
+  │                                                                 │
+  │  Running continuously at 5-minute intervals since deploy.       │
   └─────────────────────────────────────────────────────────────────┘
 
   LATEST VERIFIED TRANSACTION:
   ──────────────────────────────────────────────────────────────────
+  TX Hash:   0xe3708a410067165b777f58068869268e68a86a31946c98c991d78dfbb58cd4b8
+  Block:     39943142
+  Age:       11 mins ago (Jun 14, 2026 — Sunday — NYSE closed)
+  Method:    Execute Rebalance
+  Agent:     0x3Ba85544...5Ac946074
+
+  PROOF TX (verified swap):
   TX Hash:   0x5bafb36ee8d6bb4e947238b5a20a3507b43fecc48838909d3b2b71fbeb4ca6c1
   Block:     39940116
-  Timestamp: Jun 14, 2026 08:15:05 UTC (Sunday — NYSE closed 16h)
+  Timestamp: Jun 14, 2026 08:15:05 UTC
   Action:    EXECUTE mETH → USDY
   Confidence:89.2%
   ZK Proof:  0xe6d20068cefdfe54ae94561d3a0520fa4b155880dc5004e1e905007e63e48c20
   IPFS Proof:QmYcF1TzGSW23wDg6GV5eHepDX3ox7Va4R5C7jJXiShxf4
   Gas Used:  63,272
   ──────────────────────────────────────────────────────────────────
+
+  All 82 transactions visible on Mantlescan:
+  https://sepolia.mantlescan.xyz/address/0x4F1d65dAd79bF887776808B7c833a75dc198ADa6
 ```
 
 ---

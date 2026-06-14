@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 export const MANTLESCAN_BASE = 'https://sepolia.mantlescan.xyz';
-export const VAULT_ADDRESS = '0x632C8C9275F67abc106b8d206560E0aED63D3bC2';
+export const VAULT_ADDRESS = '0x4F1d65dAd79bF887776808B7c833a75dc198ADa6';
 const MANTLE_RPC = 'https://rpc.sepolia.mantle.xyz';
 
 // ALL REAL CONFIRMED TX HASHES from VIGILVault on Mantle Sepolia
