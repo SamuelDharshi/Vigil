@@ -1,3 +1,5 @@
+> **RYO-CHAN Hackathon 2026 (Autonomous Agents):** Vigil's practice-trading pipeline is in [packages/agent/src/research](packages/agent/src/research). It records practice trades only, with no real-money execution. Start with [the architecture](docs/ARCHITECTURE.md) and [data provenance notes](docs/DATA_PROVENANCE.md). The sections below describe the original Mantle testnet agent; their stats predate this work.
+
 [![Mantle](https://img.shields.io/badge/Mantle-Sepolia-00D097)](https://mantle.xyz)
 [![ERC-8004](https://img.shields.io/badge/ERC--8004-Agent%20%231-8A2BE2)](https://erc8004.quicknode.com)
 [![ZK Proofs](https://img.shields.io/badge/ZK-Groth16-FF6B6B)](https://github.com/iden3/snarkjs)
