@@ -67,7 +67,7 @@ async function runTests() {
   // ── TEST 4: Pyth Oracle prices ────────────────────────────────────────────
   console.log("\n── TEST 4: Pyth Oracle Prices ──────────────────────────");
   try {
-    const { fetchPythBundle } = await import("./signals/chainlink");
+    const { fetchPythBundle } = await import("./signals/pyth");
     const pyth = await fetchPythBundle();
     if (pyth.mEthPriceUsd > 0) {
       pass("Pyth ETH Price", `$${pyth.mEthPriceUsd.toFixed(2)}`);

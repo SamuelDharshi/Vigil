@@ -34,9 +34,7 @@ const ERC20_TRANSFER_TOPIC = ethers.id("Transfer(address,address,uint256)");
 /**
  * Proxy mapping strategy:
  * Known liquid token addresses → VIGIL asset proxies.
- * If a token is unknown, we use net flow direction as a market risk signal:
- *   - Net positive flow (risk-on)  → bullish mETH and xStocks
- *   - Net negative flow (risk-off) → bullish USDY
+ * Unknown tokens are ignored.
  */
 const KNOWN_PROXY_MAP: Record<string, string[]> = {
   // Ethereum / ETH ecosystem
@@ -54,36 +52,6 @@ const KNOWN_PROXY_MAP: Record<string, string[]> = {
   "0x514910771af9ca656af840dff83e8264ecf986ca": ["NVDAx"], // LINK
   "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9": ["AAPLx"], // AAVE
 };
-
-/**
- * If a token doesn't match the known map, use its net flow direction
- * as a broad market sentiment signal.
- * Positive net flow aggregate = risk-on → weight toward mETH and xStocks.
- * Negative net flow aggregate = risk-off → weight toward USDY.
- */
-function deriveMarketSignal(flows: Array<{ net_flow_24h_usd: number }>): SmartMoneyFlow[] {
-  const totalNetFlow = flows.reduce((sum, f) => sum + (f.net_flow_24h_usd || 0), 0);
-  if (Math.abs(totalNetFlow) < 10_000) return []; // Below noise floor
-
-  const direction = totalNetFlow >= 0 ? "IN" : "OUT";
-  const magnitude = Math.abs(totalNetFlow);
-
-  console.log(`[Nansen] 📊 Broad market signal: ${direction} ($${(magnitude / 1000).toFixed(0)}k net flow aggregate)`);
-
-  // Risk-on: smart money buying → bullish mETH + xStocks
-  // Risk-off: smart money selling → bullish USDY (yield flight)
-  if (direction === "IN") {
-    return [
-      { token: "mETH",  tokenAddress: "", direction: "IN", usdValue: magnitude * 0.5, walletsCount: 1, walletLabels: ["nansen-market-signal"] },
-      { token: "NVDAx", tokenAddress: "", direction: "IN", usdValue: magnitude * 0.3, walletsCount: 1, walletLabels: ["nansen-market-signal"] },
-    ];
-  } else {
-    return [
-      { token: "USDY", tokenAddress: "", direction: "IN", usdValue: magnitude * 0.7, walletsCount: 1, walletLabels: ["nansen-risk-off"] },
-      { token: "mETH", tokenAddress: "", direction: "OUT", usdValue: magnitude * 0.4, walletsCount: 1, walletLabels: ["nansen-risk-off"] },
-    ];
-  }
-}
 
 /**
  * Fetch global smart money netflows from Nansen.
@@ -120,17 +88,12 @@ async function fetchNansenNetflows(): Promise<SmartMoneyFlow[]> {
     }> = response.data?.data || [];
 
     const flows: SmartMoneyFlow[] = [];
-    const unknownFlows: Array<{ net_flow_24h_usd: number }> = [];
 
     for (const entry of data) {
       const addr = entry.token_address?.toLowerCase();
       const targetAssets = KNOWN_PROXY_MAP[addr] || [];
 
       if (targetAssets.length === 0) {
-        // Track unknown token flows for market signal derivation
-        if (Math.abs(entry.net_flow_24h_usd || 0) >= 1_000) {
-          unknownFlows.push(entry);
-        }
         continue;
       }
 
@@ -153,106 +116,22 @@ async function fetchNansenNetflows(): Promise<SmartMoneyFlow[]> {
       }
     }
 
-    // If no known tokens matched, derive broad market signal from aggregate flows
-    if (flows.length === 0 && unknownFlows.length > 0) {
-      const marketSignals = deriveMarketSignal(unknownFlows);
-      flows.push(...marketSignals);
-    }
-
     return flows;
   } catch (err: any) {
     const status = err.response?.status;
     if (status === 401 || status === 403) {
-      console.log("[Nansen] API key not active on this plan — using on-chain whale tracker");
+      console.log("[Nansen] API key not active on this plan — no Nansen flows this cycle");
     } else if (status === 402) {
-      console.log("[Nansen] API quota reached — using on-chain whale tracker");
+      console.log("[Nansen] API quota reached — no Nansen flows this cycle");
     } else if (status === 429) {
-      console.log("[Nansen] Rate limited — using on-chain whale tracker");
+      console.log("[Nansen] Rate limited — no Nansen flows this cycle");
     } else {
-      console.log(`[Nansen] API unavailable (${err.message}) — using on-chain whale tracker`);
+      console.log(`[Nansen] API unavailable (${err.message}) — no Nansen flows this cycle`);
     }
 
-    // ── Real on-chain fallback: Mantle Sepolia activity tracker ──────────────
-    // Reads actual VIGILVault skip events + mETH transfers to derive real signal.
-    try {
-      console.log("[Nansen] 🔍 Scanning Mantle Sepolia for real on-chain whale flows...");
-      const currentBlock = await provider.getBlockNumber();
-      const BLOCKS_PER_HOUR = 1800;
-      // Cap at 9900 to stay within Mantle Sepolia's 10,000 block getLogs limit
-      const windowBlocks = Math.min(BLOCKS_PER_HOUR * 6, 9900);
-      const fromBlock = Math.max(0, currentBlock - windowBlocks);
-
-      // Real VIGILVault activity = primary market signal
-      const VIGIL_VAULT = "0x2D252F4b54A2F8F4c43E6e3CF437B60b9058991F";
-      const vaultLogs = await provider.getLogs({
-        address: VIGIL_VAULT,
-        fromBlock,
-        toBlock: "latest",
-      });
-      const recentSkips = vaultLogs.length;
-      console.log(`[Nansen] 📊 VIGILVault: ${recentSkips} events in last 6h`);
-
-      // mETH transfer activity
-      let mEthActivity = 0;
-      if (TOKEN_ADDRESSES.mETH) {
-        try {
-          const transferLogs = await provider.getLogs({
-            address: TOKEN_ADDRESSES.mETH,
-            topics: [ERC20_TRANSFER_TOPIC],
-            fromBlock: Math.max(0, currentBlock - BLOCKS_PER_HOUR * 2),
-            toBlock: "latest",
-          });
-          mEthActivity = transferLogs.length;
-          console.log(`[Nansen] 📊 mETH: ${mEthActivity} transfers in last 2h`);
-        } catch { /* mETH not on testnet */ }
-      }
-
-      const magnitude = 85_000;
-      const isHighSkipRate = recentSkips >= 4;
-      const isHighMethActivity = mEthActivity >= 5;
-      console.log(`[Nansen] → Skip rate: ${isHighSkipRate ? "HIGH" : "NORMAL"} | mETH: ${isHighMethActivity ? "ACTIVE" : "QUIET"}`);
-
-      if (isHighSkipRate && !isHighMethActivity) {
-        console.log("[Nansen] 📊 On-chain signal: RISK-OFF (high skip rate)");
-        return [
-          { token: "USDY", tokenAddress: "", direction: "IN"  as const, usdValue: magnitude * 0.65, walletsCount: recentSkips, walletLabels: ["onchain-vigil-signal"] },
-          { token: "mETH", tokenAddress: "", direction: "OUT" as const, usdValue: magnitude * 0.35, walletsCount: recentSkips, walletLabels: ["onchain-vigil-signal"] },
-        ];
-      } else if (isHighMethActivity) {
-        console.log("[Nansen] 📊 On-chain signal: RISK-ON (mETH staking demand)");
-        return [
-          { token: "mETH",  tokenAddress: "", direction: "IN"  as const, usdValue: magnitude * 0.55, walletsCount: mEthActivity, walletLabels: ["onchain-meth-flow"] },
-          { token: "NVDAx", tokenAddress: "", direction: "IN"  as const, usdValue: magnitude * 0.30, walletsCount: 2, walletLabels: ["onchain-vigil-signal"] },
-          { token: "USDY",  tokenAddress: "", direction: "OUT" as const, usdValue: magnitude * 0.15, walletsCount: 1, walletLabels: ["onchain-vigil-signal"] },
-        ];
-      } else {
-        console.log("[Nansen] 📊 On-chain signal: NEUTRAL");
-        return [
-          { token: "mETH",  tokenAddress: "", direction: "IN" as const, usdValue: magnitude * 0.45, walletsCount: Math.max(1, recentSkips), walletLabels: ["onchain-vigil-signal"] },
-          { token: "USDY",  tokenAddress: "", direction: "IN" as const, usdValue: magnitude * 0.40, walletsCount: 2, walletLabels: ["onchain-vigil-signal"] },
-          { token: "NVDAx", tokenAddress: "", direction: "IN" as const, usdValue: magnitude * 0.15, walletsCount: 1, walletLabels: ["onchain-vigil-signal"] },
-        ];
-      }
-    } catch (onChainErr: any) {
-      console.warn(`[Nansen] ⚠ On-chain tracker failed (${onChainErr.message}) — using block-time signal`);
-      const dayOfWeek = new Date().getUTCDay();
-      const hourUTC = new Date().getUTCHours();
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-      const isAsianHours = hourUTC >= 0 && hourUTC < 8;
-      const isRiskOn = !isWeekend && !isAsianHours;
-      console.log(`[Nansen] 📊 Block-time signal: ${isRiskOn ? "RISK-ON" : "RISK-OFF"}`);
-      const mag = 75_000;
-      return isRiskOn
-        ? [
-            { token: "mETH",  tokenAddress: "", direction: "IN"  as const, usdValue: mag * 0.5, walletsCount: 2, walletLabels: ["block-time-signal"] },
-            { token: "NVDAx", tokenAddress: "", direction: "IN"  as const, usdValue: mag * 0.3, walletsCount: 1, walletLabels: ["block-time-signal"] },
-            { token: "USDY",  tokenAddress: "", direction: "OUT" as const, usdValue: mag * 0.2, walletsCount: 1, walletLabels: ["block-time-signal"] },
-          ]
-        : [
-            { token: "USDY", tokenAddress: "", direction: "IN"  as const, usdValue: mag * 0.6, walletsCount: 2, walletLabels: ["block-time-signal"] },
-            { token: "mETH", tokenAddress: "", direction: "OUT" as const, usdValue: mag * 0.4, walletsCount: 1, walletLabels: ["block-time-signal"] },
-          ];
-    }
+    // No substitute signal: activity on our own testnet contracts or the time of day says
+    // nothing about smart money. Assets without coverage go to fetchOnChainTransfers.
+    return [];
   }
 }
 
@@ -280,12 +159,7 @@ async function fetchTokenPrices(): Promise<Record<string, number>> {
       }
     }
   } catch (err: any) {
-    console.log(`[Nansen] Hermes price fetch timed out (${err.message}) — using fallback prices`);
-    // Provide hardcoded fallback prices in case Hermes is down
-    prices.mETH = 3000.0;
-    prices.NVDAx = 220.0;
-    prices.AAPLx = 180.0;
-    prices.TSLAx = 170.0;
+    console.log(`[Nansen] Hermes price fetch failed (${err.message}) — USD values unavailable`);
   }
   return prices;
 }
@@ -420,7 +294,8 @@ export async function fetchNansenBundle(windowHours = 6): Promise<NansenBundle> 
 
   const onChainFlows: SmartMoneyFlow[] = [];
   for (const asset of assetsToFallback) {
-    const price = prices[asset.symbol] || 1.0;
+    const price = prices[asset.symbol];
+    if (!price) continue; // no price, no USD flow estimate
     const flows = await fetchOnChainTransfers(asset.address, asset.symbol, price, windowHours);
     onChainFlows.push(...flows);
   }
