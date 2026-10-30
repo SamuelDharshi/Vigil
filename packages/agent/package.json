@@ -10,7 +10,9 @@
     "build": "tsc --project ../config && tsc --outDir dist",
     "typecheck": "tsc --noEmit",
     "test:e2e": "ts-node src/e2e-runner.ts",
-    "test": "ts-node src/test-all.ts"
+    "test": "ts-node src/test-all.ts",
+    "test:research": "node --require ts-node/register --test src/research/research.test.ts",
+    "research:run": "ts-node src/research/agent.ts"
   },
   "dependencies": {
     "@pythnetwork/pyth-evm-js": "^1.83.0",
