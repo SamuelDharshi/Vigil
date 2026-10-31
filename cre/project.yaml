@@ -1,0 +1,4 @@
+staging-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia-mantle-1
+      url: ${CRE_MANTLE_RPC_URL}

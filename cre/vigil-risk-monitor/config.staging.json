@@ -1,0 +1,10 @@
+{
+  "schedule": "0 */5 * * * *",
+  "chainSelectorName": "ethereum-testnet-sepolia-mantle-1",
+  "ledgerAddress": "0x3c4ce5558121607aea621Efa29ab428E98DD527B",
+  "vaultAddress": "0x4F1d65dAd79bF887776808B7c833a75dc198ADa6",
+  "fearGreedUrl": "https://api.alternative.me/fng/?limit=1",
+  "priceUrl": "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd&include_24hr_change=true",
+  "cautionFearGreed": 25,
+  "haltDropPct": 8
+}
