@@ -3,6 +3,7 @@ import * as path from "path";
 import { v4 as uuidv4 } from "uuid";
 import { Caller, callTool, MarketOverview, TokenAnalysis } from "./ryochan";
 import { buildSnapshot, canonical, EvidenceSnapshot, sha256 } from "./evidence";
+import { publicCall, PUBLIC_TOKENS } from "./public";
 import { assess, Assessment, STRATEGY_ID } from "./strategy";
 import { checkEntry, DEFAULT_POLICY, loadPolicy, RiskPolicy, RiskResult } from "./risk";
 import { closePosition, exitReasonFor, openPosition, PaperPosition, PortfolioState } from "./paper";
@@ -157,11 +158,14 @@ export async function selectTokens(call: Caller = callTool, env = process.env): 
 }
 
 async function main() {
-  const tokens = await selectTokens();
+  const live = !!process.env.RYOCHAN_API_KEY;
+  const call = live ? callTool : publicCall;
+  console.log(`[Research] data source: ${live ? "RYO-CHAN" : "public APIs (no RYO-CHAN key)"}`);
+  const tokens = live ? await selectTokens() : Object.keys(PUBLIC_TOKENS);
   const log =new DecisionLog(process.env.VIGIL_DECISION_LOG || path.resolve(__dirname, "../../data/decisions.jsonl"));
   const policy = loadPolicy();
   for (const t of tokens) {
-    const r = await decide(t, log, policy);
+    const r = await decide(t, log, policy, call);
     console.log(`[Research] ${t}: ${r.action} — ${r.reason} (${r.hash})`);
   }
   console.log(metrics(log.read(), policy));

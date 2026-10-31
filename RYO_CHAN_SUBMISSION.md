@@ -23,3 +23,7 @@
 3. Missing data stays missing, and bad data blocks trades.
 4. Rules decide; there is no LLM override.
 5. Any decision can be replayed, and tampering is detectable.
+
+## Data disclosure
+
+We requested a RYO-CHAN key but had not received one. The RYO-CHAN client is implemented but has not been tested live. The recorded live run uses public APIs: 3 decisions, all NO_TRADE, no practice trades yet. Nothing has been anchored on-chain from this pipeline.
