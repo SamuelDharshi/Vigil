@@ -4,8 +4,11 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { Caller, ToolName } from "./ryochan";
-import { DecisionLog, decide, metrics, replay, verifyChain } from "./agent";
-import { DEFAULT_POLICY, RiskPolicy } from "./risk";
+import { DecisionLog, decide, metrics, replay, selectTokens, verifyChain } from "./agent";
+import { checkEntry, DEFAULT_POLICY, RiskPolicy } from "./risk";
+import { buildSnapshot } from "./evidence";
+import { assess } from "./strategy";
+import { PaperPosition, PortfolioState } from "./paper";
 
 const NOW = Date.parse("2026-10-31T00:00:00Z");
 const tmpLog = () => new DecisionLog(path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vigil-")), "d.jsonl"));
@@ -145,4 +148,38 @@ test("replay recomputes scores from the stored snapshot", async () => {
   assert.equal(rep?.snapshotIntact, true);
   assert.equal(rep?.rescored, true);
   assert.equal(metrics(log.read()).label, "simulated practice trades");
+});
+
+const closedLoss = (pnl: number, at: number): PaperPosition => ({
+  tradeId: `t${at}`, status: "CLOSED", token: "OLD", contract: null, chain: null, direction: "LONG",
+  entryPrice: 1, sizeUsd: 1000, entryTime: at, exitTime: at, stopLoss: 1, takeProfit: 1, feesUsd: 0,
+  slippageBps: 0, netPnlUsd: pnl, strategyId: "s", decisionId: "d", snapshotId: "x",
+});
+const entryCheck = (pf: PortfolioState, p: RiskPolicy = DEFAULT_POLICY) => {
+  const ok = (data: unknown, tool: ToolName) => ({ ok: true as const, tool, source: "fixture", fetchedAt: NOW, data });
+  const snap = buildSnapshot("ETH", ok(token(), "analyze_token") as any, ok({ fear_greed: { value: 60, label: "G" }, generated_at: "x" }, "market_overview") as any, 900, NOW);
+  return checkEntry(p, snap, assess(snap), pf, NOW).violations.join("; ");
+};
+
+test("daily simulated loss limit blocks entries", () => {
+  const pf = { positions: [closedLoss(-4000, NOW - 1000)], realizedPnlUsd: -4000, peakEquityUsd: 100_000 };
+  assert.match(entryCheck(pf), /daily simulated loss/);
+});
+
+test("drawdown limit blocks entries", () => {
+  const pf = { positions: [closedLoss(-11000, NOW - 172_800_000)], realizedPnlUsd: -11000, peakEquityUsd: 100_000 };
+  assert.match(entryCheck(pf), /drawdown/);
+});
+
+test("token exposure limit blocks entries", () => {
+  const pf = { positions: [], realizedPnlUsd: 0, peakEquityUsd: 100_000 };
+  assert.match(entryCheck(pf, { ...DEFAULT_POLICY, maxTokenExposurePct: 0.1 }), /token exposure/);
+});
+
+test("token selection uses scan_market and falls back without inventing candidates", async () => {
+  const hit = (async (tool: ToolName) => ({ ok: true, tool, source: "f", fetchedAt: NOW, data: { candidates: [{ symbol: "AAA" }] } })) as Caller;
+  const miss = (async (tool: ToolName) => ({ ok: false, tool, source: "f", fetchedAt: NOW, error: "x", rateLimited: false })) as Caller;
+  assert.deepEqual(await selectTokens(hit, {}), ["AAA"]);
+  assert.deepEqual(await selectTokens(miss, {}), ["BTC", "ETH", "SOL"]);
+  assert.deepEqual(await selectTokens(miss, { VIGIL_TOKENS: "X,Y" }), ["X", "Y"]);
 });

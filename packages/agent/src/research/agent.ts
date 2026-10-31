@@ -148,9 +148,17 @@ const verifySnapshot = (s: EvidenceSnapshot) => {
   return sha256(canonical(body)) === snapshotId;
 };
 
+/** Explicit VIGIL_TOKENS wins. Otherwise use scan_market candidates, falling back to majors. */
+export async function selectTokens(call: Caller = callTool, env = process.env): Promise<string[]> {
+  if (env.VIGIL_TOKENS) return env.VIGIL_TOKENS.split(",");
+  const scan = await call<{ candidates?: { symbol: string }[] }>("scan_market", {});
+  const found = scan.ok ? (scan.data.candidates ?? []).slice(0, 5).map(c => c.symbol) : [];
+  return found.length ? found : ["BTC", "ETH", "SOL"];
+}
+
 async function main() {
-  const tokens = (process.env.VIGIL_TOKENS || "BTC,ETH,SOL").split(",");
-  const log = new DecisionLog(process.env.VIGIL_DECISION_LOG || path.resolve(__dirname, "../../data/decisions.jsonl"));
+  const tokens = await selectTokens();
+  const log =new DecisionLog(process.env.VIGIL_DECISION_LOG || path.resolve(__dirname, "../../data/decisions.jsonl"));
   const policy = loadPolicy();
   for (const t of tokens) {
     const r = await decide(t, log, policy);
