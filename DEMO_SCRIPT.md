@@ -1,3 +1,5 @@
+> Old script for the Mantle hackathon. For RYO-CHAN use [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md).
+
 # VIGIL — Demo Day Script
 ### Mantle Turing Test Hackathon 2026 | July 2–3
 
