@@ -8,4 +8,4 @@ Verified from the public OpenAPI spec: POST https://app-ryochan.com/api/mcp/tool
 
 Removed from signals/nansen.ts: a fixed $85k "whale flow" built from our own vault activity, a time-of-day signal, a market-wide signal split across assets, and hardcoded fallback prices.
 
-Still weak in the older loop: elfa.ts treats engagement as sentiment and sets its baseline to 0, Nansen flows use proxy tokens, and the gas loop mints mock mETH and calls it yield.
+Elfa engagement is no longer scored as sentiment, and the gas loop now labels minted mock mETH as simulated. Still weak: Nansen flows use proxy tokens, the ZK input uses a hardcoded target allocation, and the War Room frontend is simulated.

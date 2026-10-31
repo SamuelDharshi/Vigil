@@ -6,3 +6,7 @@ Branch ryo-chan-hackathon.
 - Removed fabricated signals and hardcoded prices from signals/nansen.ts.
 - Fixed a broken import in test-all.ts.
 - Added the competition docs.
+- Added VIGILReasoningAnchor, its tests, a deploy script and the anchor client (not deployed).
+- Added scan_market token selection and more risk tests.
+- Added the /research dashboard; labelled simulated pages and removed random proofs.
+- Stopped treating Elfa engagement as sentiment; labelled simulated gas-loop yield.

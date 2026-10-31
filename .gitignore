@@ -135,3 +135,6 @@ pnpm-lock.yaml
 
 
 packages/agent/data/
+
+vigil/public/decisions.jsonl
+vigil/public/anchors.jsonl

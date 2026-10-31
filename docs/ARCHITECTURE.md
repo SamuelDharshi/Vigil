@@ -13,4 +13,6 @@ The practice-trading pipeline lives in packages/agent/src/research/.
 
 No LLM takes part in this pipeline. The older Mantle loop (cron.ts) is separate and still runs on testnet mock tokens.
 
+Dashboard: the /research route shows real decisions, reasoning, portfolio, anchors and replay from vigil/public/decisions.jsonl and anchors.jsonl. War Room, Charts and Proof are simulated demo pages and are labelled so.
+
 Run it: set RYOCHAN_API_KEY, then `cd packages/agent && npm run research:run`.
