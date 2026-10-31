@@ -566,10 +566,10 @@ async function runYieldToGasLoop(): Promise<void> {
 
     // Step 1: Claim Yield (simulate yield by minting 0.05 mETH directly to agent wallet)
     const claimAmount = ethers.parseEther("0.05");
-    console.log(`[Gas Loop] Claiming mETH yield (minting ${ethers.formatEther(claimAmount)} mETH)...`);
+    console.log(`[Gas Loop] SIMULATED yield: minting ${ethers.formatEther(claimAmount)} mock mETH (testnet, not real yield)...`);
     let tx = await mETH.mint(agentWallet.address, claimAmount);
     await tx.wait();
-    console.log(`[Gas Loop] Yield claimed in TX: ${tx.hash}`);
+    console.log(`[Gas Loop] Simulated yield minted in TX: ${tx.hash}`);
 
     // Step 2: Approve MockDEX to spend mETH
     console.log(`[Gas Loop] Approving MockDEX to spend ${ethers.formatEther(claimAmount)} mETH...`);

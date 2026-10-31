@@ -95,7 +95,7 @@ export function generateReasoning(
   const fromSentiment = bundle.elfa.sentimentDeltas[fromAsset];
   if (fromSentiment !== undefined && Math.abs(fromSentiment) > 0.1) {
     const direction = fromSentiment < 0 ? "dropped" : "rose";
-    parts.push(`${fromAsset} sentiment ${direction} ${Math.abs(fromSentiment * 100).toFixed(0)}% vs 7d baseline`);
+    parts.push(`${fromAsset} sentiment ${direction} ${Math.abs(fromSentiment * 100).toFixed(0)}% (provider score)`);
   }
 
   parts.push(

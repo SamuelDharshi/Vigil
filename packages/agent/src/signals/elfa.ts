@@ -80,11 +80,7 @@ async function fetchKeywordMentions(
 /**
  * Compute a sentiment delta score [-1, 1] from a list of mentions.
  *
- * Logic:
- * - Uses engagement metrics (likes, reposts, views) as a sentiment proxy
- * - High engagement relative to average → positive momentum
- * - Uses view count as the primary signal (most reliable for crypto Twitter)
- * - Normalizes to [-1, 1]
+ * Uses the provider sentimentScore only. Returns 0 when none is present.
  */
 function computeSentimentDelta(mentions: ElfaMention[]): number {
   if (!mentions || mentions.length === 0) return 0;
@@ -96,20 +92,8 @@ function computeSentimentDelta(mentions: ElfaMention[]): number {
     return Math.max(-1, Math.min(1, avgSentiment));
   }
 
-  // Fallback: compute engagement-weighted signal
-  const totalViews    = mentions.reduce((s, m) => s + (m.viewCount || 0), 0);
-  const totalLikes    = mentions.reduce((s, m) => s + (m.likeCount || 0), 0);
-  const totalReposts  = mentions.reduce((s, m) => s + (m.repostCount || 0), 0);
-
-  if (totalViews === 0) return 0;
-
-  // Engagement rate: (likes + reposts × 3) / views
-  // A ratio >5% = strongly positive, <1% = neutral or weak
-  const engagementRate = (totalLikes + totalReposts * 3) / totalViews;
-
-  // Normalize: 0.05 → +1.0, 0.01 → 0, 0 → -1.0
-  const delta = (engagementRate - 0.01) / 0.04;
-  return Math.max(-1, Math.min(1, delta));
+  // Engagement is not sentiment, so no score means no signal.
+  return 0;
 }
 
 /**
